@@ -16,6 +16,7 @@ describe('daily task scheduler', () => {
     expect(plan.newWords).toHaveLength(2)
     expect(plan.newWords.every((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)).toBe(true)
     expect(plan.questionQueue).toHaveLength(2)
+    expect(plan.questionQueue.every((item) => item.questionType === 'enToZh')).toBe(true)
   })
 
   test('prioritizes due review words with wrong answers', () => {

@@ -36,6 +36,14 @@ const rotateOptions = (options: string[], seed: string) => {
   return [...options.slice(offset), ...options.slice(0, offset)]
 }
 
+const getDistractorPool = (word: Word, allWords: Word[]) => {
+  const otherWords = allWords.filter((candidate) => candidate.id !== word.id)
+  const sameUnitWords = otherWords.filter((candidate) => candidate.unitId === word.unitId)
+  const sameBookWords = otherWords.filter((candidate) => candidate.bookId === word.bookId)
+
+  return unique([...sameUnitWords, ...sameBookWords, ...otherWords])
+}
+
 export const createQuestion = ({
   word,
   allWords,
@@ -57,8 +65,7 @@ export const createQuestion = ({
 
   const isEnglishToChinese = questionType === 'enToZh'
   const answer = isEnglishToChinese ? getMeaning(word) : word.text
-  const distractors = allWords
-    .filter((candidate) => candidate.id !== word.id)
+  const distractors = getDistractorPool(word, allWords)
     .map((candidate) => (isEnglishToChinese ? getMeaning(candidate) : candidate.text))
     .filter(Boolean)
 

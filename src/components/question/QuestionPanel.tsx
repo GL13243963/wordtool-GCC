@@ -1,8 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createQuestion, evaluateAnswer, type StudyQuestion } from '../../domain/study/questionFactory'
 import type { AnswerResult } from '../../domain/study/types'
 import type { Word } from '../../domain/vocabulary/types'
 import { Button } from '../ui/Button'
+
+const AUTO_ADVANCE_DELAYS: Record<AnswerResult, number> = {
+  correct: 900,
+  wrong: 1600,
+  fuzzy: 800,
+  skipped: 700,
+}
 
 export type QuestionPanelProps = {
   word: Word
@@ -16,6 +23,12 @@ type PendingAnswer = {
   feedback: string
 }
 
+const getQuestionInstruction = (questionType: StudyQuestion['questionType']) => {
+  if (questionType === 'enToZh') return '看英文，选择中文意思'
+  if (questionType === 'zhToEn') return '看中文，选择英文单词'
+  return '根据中文意思拼写英文'
+}
+
 export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: QuestionPanelProps) => {
   const question = useMemo(
     () => createQuestion({ word, allWords, questionType }),
@@ -27,7 +40,43 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
   const [pendingAnswer, setPendingAnswer] = useState<PendingAnswer | null>(null)
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const hasSubmittedRef = useRef(false)
+  const autoAdvanceTimerRef = useRef<number | null>(null)
   const hasAnswered = pendingAnswer !== null
+
+  const clearAutoAdvanceTimer = () => {
+    if (autoAdvanceTimerRef.current === null) return
+
+    window.clearTimeout(autoAdvanceTimerRef.current)
+    autoAdvanceTimerRef.current = null
+  }
+
+  const handleNext = async () => {
+    if (!pendingAnswer || isSubmitting || hasSubmittedRef.current) return
+
+    clearAutoAdvanceTimer()
+    hasSubmittedRef.current = true
+    setSubmitError('')
+    setIsSubmitting(true)
+    try {
+      await onAnswer(pendingAnswer.result)
+    } catch {
+      hasSubmittedRef.current = false
+      setSubmitError('保存失败，请检查浏览器本地存储后重试。')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!pendingAnswer || submitError) return undefined
+
+    autoAdvanceTimerRef.current = window.setTimeout(() => {
+      void handleNext()
+    }, AUTO_ADVANCE_DELAYS[pendingAnswer.result])
+
+    return clearAutoAdvanceTimer
+  }, [pendingAnswer, submitError])
 
   const stageAnswer = (result: AnswerResult, feedback: string) => {
     if (hasAnswered || isSubmitting) return
@@ -39,7 +88,7 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
 
     setSelectedAnswer(option)
     const isCorrect = option === question.answer
-    stageAnswer(isCorrect ? 'correct' : 'wrong', isCorrect ? '回答正确！' : `正确答案：${question.answer}`)
+    stageAnswer(isCorrect ? 'correct' : 'wrong', isCorrect ? '回答正确，马上进入下一题。' : `正确答案：${question.answer}`)
   }
 
   const handleSpellingSubmit = () => {
@@ -48,7 +97,7 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
 
     const isCorrect = evaluateAnswer(question.answer, spellingAnswer)
     if (isCorrect) {
-      stageAnswer('correct', '拼写正确！')
+      stageAnswer('correct', '拼写正确，马上进入下一题。')
       return
     }
 
@@ -60,23 +109,12 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
     stageAnswer('wrong', `正确拼写：${question.answer}`)
   }
 
-  const handleNext = async () => {
-    if (!pendingAnswer || isSubmitting) return
-
-    setSubmitError('')
-    setIsSubmitting(true)
-    try {
-      await onAnswer(pendingAnswer.result)
-    } catch {
-      setSubmitError('保存失败，请检查浏览器本地存储后重试。')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   return (
     <div className="question-panel">
-      <div className="question-panel__meta">{questionType === 'spelling' ? '拼写题' : '选择题'}</div>
+      <div>
+        <div className="question-panel__meta">{getQuestionInstruction(questionType)}</div>
+        {word.partOfSpeech && <div className="question-panel__hint">词性：{word.partOfSpeech}</div>}
+      </div>
       <h2 className="question-panel__prompt">{question.prompt}</h2>
 
       {question.type === 'choice' ? (
@@ -99,6 +137,7 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
         </div>
       ) : (
         <div className="spelling-box">
+          <p className="question-panel__hint">提示：{question.answer.length} 个字符，首字母 {question.answer[0]?.toUpperCase()}</p>
           <input
             aria-label="输入英文拼写"
             className="spelling-box__input"
@@ -123,11 +162,11 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
       <div className="question-panel__actions">
         {pendingAnswer ? (
           <Button disabled={isSubmitting} onClick={handleNext} type="button">
-            {isSubmitting ? '保存中……' : '下一题'}
+            {isSubmitting ? '保存中……' : '立即下一题'}
           </Button>
         ) : (
           <>
-            <Button disabled={isSubmitting} onClick={() => stageAnswer('fuzzy', '已标记为模糊，稍后会加强复习。')} type="button" variant="secondary">模糊</Button>
+            <Button disabled={isSubmitting} onClick={() => stageAnswer('fuzzy', '已标记为模糊，马上进入下一题。')} type="button" variant="secondary">模糊</Button>
             <Button disabled={isSubmitting} onClick={() => stageAnswer('skipped', '已跳过，之后会重新安排。')} type="button" variant="ghost">跳过</Button>
           </>
         )}

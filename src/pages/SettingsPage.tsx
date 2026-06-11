@@ -3,7 +3,9 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import type { AppView } from '../App'
 import type { AppSettings } from '../domain/settings/types'
+import type { Unit } from '../domain/vocabulary/types'
 import { exportBackup, restoreBackup } from '../storage/backupService'
+import { getAllUnits } from '../storage/progressRepository'
 import { getSettings, saveSettings } from '../storage/settingsRepository'
 
 const MAX_BACKUP_FILE_SIZE_BYTES = 5 * 1024 * 1024
@@ -37,6 +39,7 @@ const BackupPanel = ({ message, onExport, onRestore }: BackupPanelProps) => (
 
 export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
   const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [units, setUnits] = useState<Unit[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [message, setMessage] = useState('')
@@ -46,8 +49,11 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
 
     const load = async () => {
       try {
-        const nextSettings = await getSettings()
-        if (!cancelled) setSettings(nextSettings)
+        const [nextSettings, nextUnits] = await Promise.all([getSettings(), getAllUnits()])
+        if (!cancelled) {
+          setSettings(nextSettings)
+          setUnits(nextUnits)
+        }
       } catch {
         if (!cancelled) setLoadError('设置加载失败。你仍然可以在下方导入备份恢复数据。')
       } finally {
@@ -62,11 +68,39 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
     }
   }, [])
 
+  const availableBooks = Array.from(new Map(units.map((unit) => [unit.bookId, unit])).values())
+  const unitsForCurrentBook = units.filter((unit) => unit.bookId === settings?.currentBookId)
+
   const updateNumber = (key: 'dailyNewWordLimit' | 'dailyReviewLimit' | 'dailyTimeLimitMinutes') =>
     (event: ChangeEvent<HTMLInputElement>) => {
       if (!settings) return
       setSettings({ ...settings, [key]: Number(event.target.value) })
     }
+
+  const handleBookChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    if (!settings) return
+
+    const nextBookId = event.target.value as AppSettings['currentBookId']
+    const firstUnit = units.find((unit) => unit.bookId === nextBookId)
+    setSettings({
+      ...settings,
+      currentBookId: nextBookId,
+      currentUnitId: firstUnit?.id ?? settings.currentUnitId,
+    })
+  }
+
+  const handleUnitChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    if (!settings) return
+
+    const nextUnit = units.find((unit) => unit.id === event.target.value)
+    if (!nextUnit) return
+
+    setSettings({
+      ...settings,
+      currentBookId: nextUnit.bookId,
+      currentUnitId: nextUnit.id,
+    })
+  }
 
   const handleSave = async () => {
     if (!settings) return
@@ -141,6 +175,22 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
 
       {settings && (
         <Card className="settings-form">
+          <label>
+            当前书册
+            <select onChange={handleBookChange} value={settings.currentBookId}>
+              {availableBooks.map((unit) => (
+                <option key={unit.bookId} value={unit.bookId}>{unit.grade} {unit.semester}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            当前 Unit
+            <select onChange={handleUnitChange} value={settings.currentUnitId}>
+              {unitsForCurrentBook.map((unit) => (
+                <option key={unit.id} value={unit.id}>Unit {unit.order} · {unit.title}</option>
+              ))}
+            </select>
+          </label>
           <label>
             每日新词数
             <input min="1" max="100" onChange={updateNumber('dailyNewWordLimit')} type="number" value={settings.dailyNewWordLimit} />

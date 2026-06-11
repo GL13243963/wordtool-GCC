@@ -1,4 +1,4 @@
-export type BookId = 'grade-6a' | 'grade-6b'
+export type BookId = 'grade-6a' | 'grade-6b' | 'grade-7a'
 
 export type Semester = '上册' | '下册'
 

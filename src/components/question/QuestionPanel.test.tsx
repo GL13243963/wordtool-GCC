@@ -1,14 +1,20 @@
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, expect, test, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { builtinWords } from '../../data/vocabulary'
 import { QuestionPanel } from './QuestionPanel'
 
 describe('QuestionPanel', () => {
-  test('stages correct choice answers before moving next', async () => {
-    const user = userEvent.setup()
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  test('auto-advances after correct choice feedback', async () => {
     const onAnswer = vi.fn()
-    const word = builtinWords.find((item) => item.text === 'different')!
+    const word = builtinWords.find((item) => item.text === 'guitar')!
 
     render(
       <QuestionPanel
@@ -19,19 +25,21 @@ describe('QuestionPanel', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: '不同的' }))
+    fireEvent.click(screen.getByRole('button', { name: '吉他' }))
 
-    expect(screen.getByText('回答正确！')).toBeTruthy()
+    expect(screen.getByText('回答正确，马上进入下一题。')).toBeTruthy()
     expect(onAnswer).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: '下一题' }))
+    await act(async () => {
+      vi.advanceTimersByTime(900)
+    })
+
     expect(onAnswer).toHaveBeenCalledWith('correct')
   })
 
-  test('gives spelling one retry before marking wrong', async () => {
-    const user = userEvent.setup()
+  test('gives spelling one retry before auto-advancing wrong answers', async () => {
     const onAnswer = vi.fn()
-    const word = builtinWords.find((item) => item.text === 'family')!
+    const word = builtinWords.find((item) => item.text === 'guitar')!
 
     render(
       <QuestionPanel
@@ -42,16 +50,19 @@ describe('QuestionPanel', () => {
       />,
     )
 
-    await user.type(screen.getByLabelText('输入英文拼写'), 'famil')
-    await user.click(screen.getByRole('button', { name: '提交' }))
+    fireEvent.change(screen.getByLabelText('输入英文拼写'), { target: { value: 'guita' } })
+    fireEvent.click(screen.getByRole('button', { name: '提交' }))
     expect(screen.getByText('再试一次，注意拼写。')).toBeTruthy()
     expect(onAnswer).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: '提交' }))
-    expect(screen.getByText('正确拼写：family')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '提交' }))
+    expect(screen.getByText('正确拼写：guitar')).toBeTruthy()
     expect(onAnswer).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: '下一题' }))
+    await act(async () => {
+      vi.advanceTimersByTime(1600)
+    })
+
     expect(onAnswer).toHaveBeenCalledWith('wrong')
   })
 })

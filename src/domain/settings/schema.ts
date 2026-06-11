@@ -15,7 +15,7 @@ export const appSettingsSchema = z.object({
   dailyNewWordLimit: z.number().int().min(1).max(100),
   dailyReviewLimit: z.number().int().min(0).max(300),
   dailyTimeLimitMinutes: z.number().int().min(5).max(180),
-  currentBookId: z.enum(['grade-6a', 'grade-6b']),
+  currentBookId: z.enum(['grade-6a', 'grade-6b', 'grade-7a']),
   currentUnitId: z.string().min(1).max(80),
   autoAdvanceUnit: z.boolean(),
   unitMasteryThreshold: z.number().min(0).max(1),

@@ -11,11 +11,32 @@ const getEnabledQuestionTypes = (settings: AppSettings): QuestionType[] =>
     return settings.questionTypesEnabled.spelling
   })
 
-const getNextQuestionType = (enabledQuestionTypes: QuestionType[], progress?: WordProgress): QuestionType => {
-  const fallback = enabledQuestionTypes[0] ?? 'enToZh'
-  if (!progress || progress.completedQuestionTypes.length === 0) return fallback
+const getFirstEnabledQuestionType = (
+  enabledQuestionTypes: QuestionType[],
+  preferredQuestionType: QuestionType,
+): QuestionType =>
+  enabledQuestionTypes.includes(preferredQuestionType)
+    ? preferredQuestionType
+    : enabledQuestionTypes[0] ?? 'enToZh'
 
-  return enabledQuestionTypes.find((questionType) => !progress.completedQuestionTypes.includes(questionType)) ?? fallback
+const getNextQuestionType = (enabledQuestionTypes: QuestionType[], progress?: WordProgress): QuestionType => {
+  if (!progress || progress.seenCount === 0) {
+    return getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
+  }
+
+  if (progress.lastAnswerResult === 'wrong' || progress.fuzzyCount > progress.correctCount) {
+    return getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
+  }
+
+  if (progress.seenCount < 2) {
+    return getFirstEnabledQuestionType(enabledQuestionTypes, 'zhToEn')
+  }
+
+  if (progress.masteryScore >= 35) {
+    return getFirstEnabledQuestionType(enabledQuestionTypes, 'spelling')
+  }
+
+  return getFirstEnabledQuestionType(enabledQuestionTypes, 'zhToEn')
 }
 
 const byPriority = (now: number) => (left: WordProgress, right: WordProgress) => {
@@ -66,7 +87,7 @@ export const createDailyTaskPlan = ({
     const progress = progressByWordId.get(word.id)
     const questionType = progress
       ? getNextQuestionType(enabledQuestionTypes, progress)
-      : enabledQuestionTypes[index % enabledQuestionTypes.length]
+      : getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
 
     return {
       id: `${now}-${word.id}-${index}`,
