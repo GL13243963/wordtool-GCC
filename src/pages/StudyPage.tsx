@@ -9,6 +9,7 @@ import type { Word } from '../domain/vocabulary/types'
 import { getAllWords, getProgressMap, submitWordAnswer } from '../storage/progressRepository'
 import { getSettings } from '../storage/settingsRepository'
 import type { AppView } from '../App'
+import type { AppSettings } from '../domain/settings/types'
 
 type StudyPageProps = {
   onNavigate: (view: AppView) => void
@@ -17,6 +18,7 @@ type StudyPageProps = {
 export const StudyPage = ({ onNavigate }: StudyPageProps) => {
   const [words, setWords] = useState<Word[]>([])
   const [queue, setQueue] = useState<QuestionItem[]>([])
+  const [settings, setSettings] = useState<AppSettings | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [completedCount, setCompletedCount] = useState(0)
   const [wrongCount, setWrongCount] = useState(0)
@@ -36,6 +38,7 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
         if (cancelled) return
 
         const plan = createDailyTaskPlan({ words: allWords, progressByWordId: progressMap, settings, now: Date.now() })
+        setSettings(settings)
         setWords(allWords)
         setQueue(plan.questionQueue)
       } catch {
@@ -110,13 +113,20 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
 
   return (
     <div className="study-layout">
-      <ProgressBar current={Math.min(currentIndex + 1, queue.length)} total={queue.length} />
-      <Card>
+      <div className="study-header-card">
+        <div>
+          <p className="eyebrow">今日练习</p>
+          <h1>{currentWord.unitTitle}</h1>
+        </div>
+        <ProgressBar current={Math.min(currentIndex + 1, queue.length)} total={queue.length} />
+      </div>
+      <Card className="study-card">
         <QuestionPanel
           allWords={words}
           key={currentQuestion.id}
           onAnswer={handleAnswer}
           questionType={currentQuestion.questionType}
+          soundEnabled={settings?.soundEnabled ?? true}
           word={currentWord}
         />
       </Card>

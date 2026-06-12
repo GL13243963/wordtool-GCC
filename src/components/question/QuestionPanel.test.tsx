@@ -21,6 +21,7 @@ describe('QuestionPanel', () => {
         allWords={builtinWords}
         onAnswer={onAnswer}
         questionType="enToZh"
+        soundEnabled={false}
         word={word}
       />,
     )
@@ -46,6 +47,7 @@ describe('QuestionPanel', () => {
         allWords={builtinWords}
         onAnswer={onAnswer}
         questionType="spelling"
+        soundEnabled={false}
         word={word}
       />,
     )

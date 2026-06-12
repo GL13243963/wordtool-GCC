@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { playAnswerSound, speakEnglish } from '../../domain/study/audioFeedback'
 import { createQuestion, evaluateAnswer, type StudyQuestion } from '../../domain/study/questionFactory'
 import type { AnswerResult } from '../../domain/study/types'
 import type { Word } from '../../domain/vocabulary/types'
@@ -15,6 +16,7 @@ export type QuestionPanelProps = {
   word: Word
   allWords: Word[]
   questionType: StudyQuestion['questionType']
+  soundEnabled: boolean
   onAnswer: (result: AnswerResult) => Promise<void> | void
 }
 
@@ -29,7 +31,7 @@ const getQuestionInstruction = (questionType: StudyQuestion['questionType']) => 
   return '根据中文意思拼写英文'
 }
 
-export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: QuestionPanelProps) => {
+export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, onAnswer }: QuestionPanelProps) => {
   const question = useMemo(
     () => createQuestion({ word, allWords, questionType }),
     [allWords, questionType, word],
@@ -80,6 +82,7 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
 
   const stageAnswer = (result: AnswerResult, feedback: string) => {
     if (hasAnswered || isSubmitting) return
+    playAnswerSound(result, soundEnabled)
     setPendingAnswer({ result, feedback })
   }
 
@@ -115,7 +118,14 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
         <div className="question-panel__meta">{getQuestionInstruction(questionType)}</div>
         {word.partOfSpeech && <div className="question-panel__hint">词性：{word.partOfSpeech}</div>}
       </div>
-      <h2 className="question-panel__prompt">{question.prompt}</h2>
+      <div className="question-panel__prompt-row">
+        <h2 className="question-panel__prompt">{question.prompt}</h2>
+        {questionType === 'enToZh' && (
+          <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
+            🔊 听发音
+          </Button>
+        )}
+      </div>
 
       {question.type === 'choice' ? (
         <div className="question-panel__options">
@@ -156,7 +166,11 @@ export const QuestionPanel = ({ word, allWords, questionType, onAnswer }: Questi
         </div>
       )}
 
-      {pendingAnswer && <p className="question-panel__feedback">{pendingAnswer.feedback}</p>}
+      {pendingAnswer && (
+        <p className={`question-panel__feedback question-panel__feedback--${pendingAnswer.result}`}>
+          {pendingAnswer.feedback}
+        </p>
+      )}
       {submitError && <p className="question-panel__feedback question-panel__feedback--error">{submitError}</p>}
 
       <div className="question-panel__actions">

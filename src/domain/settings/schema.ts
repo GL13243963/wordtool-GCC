@@ -21,6 +21,7 @@ export const appSettingsSchema = z.object({
   unitMasteryThreshold: z.number().min(0).max(1),
   unitQuizPassThreshold: z.number().min(0).max(1),
   questionTypesEnabled: questionTypeSettingsSchema,
+  soundEnabled: z.boolean().default(true),
   updatedAt: z.number().int().min(0),
 }) satisfies z.ZodType<AppSettings>
 

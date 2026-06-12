@@ -17,6 +17,7 @@ export type AppSettings = {
   unitMasteryThreshold: number
   unitQuizPassThreshold: number
   questionTypesEnabled: QuestionTypeSettings
+  soundEnabled: boolean
   updatedAt: number
 }
 
@@ -37,5 +38,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     zhToEn: true,
     spelling: true,
   },
+  soundEnabled: true,
   updatedAt: 0,
 }

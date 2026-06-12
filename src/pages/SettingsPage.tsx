@@ -205,6 +205,14 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
           </label>
           <label className="checkbox-row">
             <input
+              checked={settings.soundEnabled}
+              onChange={(event) => setSettings({ ...settings, soundEnabled: event.target.checked })}
+              type="checkbox"
+            />
+            答题反馈音效
+          </label>
+          <label className="checkbox-row">
+            <input
               checked={settings.autoAdvanceUnit}
               onChange={(event) => setSettings({ ...settings, autoAdvanceUnit: event.target.checked })}
               type="checkbox"
