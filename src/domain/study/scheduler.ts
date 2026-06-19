@@ -1,39 +1,8 @@
 import type { AppSettings } from '../settings/types'
 import type { Word } from '../vocabulary/types'
-import type { QuestionItem, QuestionType, WordProgress } from './types'
+import type { QuestionItem, WordProgress } from './types'
 
-const QUESTION_SEQUENCE: QuestionType[] = ['enToZh', 'spelling']
 
-const getEnabledQuestionTypes = (settings: AppSettings): QuestionType[] =>
-  QUESTION_SEQUENCE.filter((questionType) => {
-    if (questionType === 'enToZh') return settings.questionTypesEnabled.enToZh
-    return settings.questionTypesEnabled.spelling
-  })
-
-const getFirstEnabledQuestionType = (
-  enabledQuestionTypes: QuestionType[],
-  preferredQuestionType: QuestionType,
-): QuestionType =>
-  enabledQuestionTypes.includes(preferredQuestionType)
-    ? preferredQuestionType
-    : enabledQuestionTypes[0] ?? 'enToZh'
-
-const getNextQuestionType = (enabledQuestionTypes: QuestionType[], progress?: WordProgress): QuestionType => {
-  if (!progress || progress.seenCount === 0) {
-    return getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
-  }
-
-  if (progress.lastAnswerResult === 'wrong' || progress.fuzzyCount > progress.correctCount) {
-    return getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
-  }
-
-  // 答对 2 次英译中后，进入拼写阶段
-  if (progress.seenCount >= 2 && progress.masteryScore >= 20) {
-    return getFirstEnabledQuestionType(enabledQuestionTypes, 'spelling')
-  }
-
-  return getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
-}
 
 const byPriority = (now: number) => (left: WordProgress, right: WordProgress) => {
   const leftDue = left.nextReviewAt ?? 0
@@ -62,7 +31,6 @@ export const createDailyTaskPlan = ({
   settings: AppSettings
   now: number
 }): DailyTaskPlan => {
-  const enabledQuestionTypes = getEnabledQuestionTypes(settings)
   const currentUnitWords = words.filter((word) => word.unitId === settings.currentUnitId)
   const newWords = currentUnitWords
     .filter((word) => !progressByWordId.has(word.id) || progressByWordId.get(word.id)?.status === 'new')
@@ -79,18 +47,30 @@ export const createDailyTaskPlan = ({
     .slice(0, settings.dailyReviewLimit)
 
   const orderedWords = [...reviewWords.slice(0, 3), ...newWords, ...reviewWords.slice(3)]
-  const questionQueue = orderedWords.map((word, index) => {
-    const progress = progressByWordId.get(word.id)
-    const questionType = progress
-      ? getNextQuestionType(enabledQuestionTypes, progress)
-      : getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
+  const questionQueue: QuestionItem[] = []
 
-    return {
-      id: `${now}-${word.id}-${index}`,
+  orderedWords.forEach((word, _wordIndex) => {
+    const progress = progressByWordId.get(word.id)
+    let questionIndex = 0
+
+    // 总是生成英译中题
+    questionQueue.push({
+      id: `${now}-${word.id}-${questionIndex++}`,
       wordId: word.id,
       unitId: word.unitId,
-      questionType,
+      questionType: 'enToZh',
       status: 'pending' as const,
+    })
+
+    // 如果已见过（不是全新单词），额外生成拼写题
+    if (progress && progress.seenCount >= 1) {
+      questionQueue.push({
+        id: `${now}-${word.id}-${questionIndex++}`,
+        wordId: word.id,
+        unitId: word.unitId,
+        questionType: 'spelling',
+        status: 'pending' as const,
+      })
     }
   })
 
