@@ -40,22 +40,35 @@ describe('daily task scheduler', () => {
   })
 
   test('uses only enabled question types', () => {
+    // 创建有进度的单词并设置复习时间，触发拼写题
+    const progressMap = new Map()
+    for (const word of builtinWords.slice(0, 3)) {
+      progressMap.set(word.id, {
+        ...createInitialWordProgress({ studentId: 'student', wordId: word.id, unitId: word.unitId, now: 0 }),
+        seenCount: 5,
+        correctCount: 5,
+        masteryScore: 50,
+        nextReviewAt: 500, // 设置为已到复习时间
+        status: 'reviewing',
+      })
+    }
+
     const plan = createDailyTaskPlan({
       words: builtinWords,
-      progressByWordId: new Map(),
+      progressByWordId: progressMap,
       settings: {
         ...DEFAULT_SETTINGS,
-        dailyNewWordLimit: 3,
+        dailyNewWordLimit: 0,
+        dailyReviewLimit: 3,
         questionTypesEnabled: {
           enToZh: false,
-          zhToEn: true,
-          spelling: false,
+          spelling: true,
         },
       },
       now: 1_000,
     })
 
     expect(plan.questionQueue).not.toHaveLength(0)
-    expect(plan.questionQueue.every((item) => item.questionType === 'zhToEn')).toBe(true)
+    expect(plan.questionQueue.every((item) => item.questionType === 'spelling')).toBe(true)
   })
 })

@@ -2,12 +2,11 @@ import type { AppSettings } from '../settings/types'
 import type { Word } from '../vocabulary/types'
 import type { QuestionItem, QuestionType, WordProgress } from './types'
 
-const QUESTION_SEQUENCE: QuestionType[] = ['enToZh', 'zhToEn', 'spelling']
+const QUESTION_SEQUENCE: QuestionType[] = ['enToZh', 'spelling']
 
 const getEnabledQuestionTypes = (settings: AppSettings): QuestionType[] =>
   QUESTION_SEQUENCE.filter((questionType) => {
     if (questionType === 'enToZh') return settings.questionTypesEnabled.enToZh
-    if (questionType === 'zhToEn') return settings.questionTypesEnabled.zhToEn
     return settings.questionTypesEnabled.spelling
   })
 
@@ -28,15 +27,12 @@ const getNextQuestionType = (enabledQuestionTypes: QuestionType[], progress?: Wo
     return getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
   }
 
-  if (progress.seenCount < 2) {
-    return getFirstEnabledQuestionType(enabledQuestionTypes, 'zhToEn')
-  }
-
-  if (progress.masteryScore >= 35) {
+  // 答对 2 次英译中后，进入拼写阶段
+  if (progress.seenCount >= 2 && progress.masteryScore >= 20) {
     return getFirstEnabledQuestionType(enabledQuestionTypes, 'spelling')
   }
 
-  return getFirstEnabledQuestionType(enabledQuestionTypes, 'zhToEn')
+  return getFirstEnabledQuestionType(enabledQuestionTypes, 'enToZh')
 }
 
 const byPriority = (now: number) => (left: WordProgress, right: WordProgress) => {

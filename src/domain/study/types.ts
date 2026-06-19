@@ -1,6 +1,6 @@
 import type { AppSettings } from '../settings/types'
 
-export type QuestionType = 'enToZh' | 'zhToEn' | 'spelling'
+export type QuestionType = 'enToZh' | 'spelling'
 
 export type AnswerResult = 'correct' | 'wrong' | 'fuzzy' | 'skipped'
 
@@ -22,6 +22,7 @@ export type WordProgress = {
   skippedCount: number
   masteryScore: number
   completedQuestionTypes: QuestionType[]
+  starred?: boolean
   firstSeenAt?: number
   lastSeenAt?: number
   nextReviewAt?: number

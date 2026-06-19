@@ -3,7 +3,7 @@ import type { QuestionType } from './types'
 
 export type ChoiceQuestion = {
   type: 'choice'
-  questionType: 'enToZh' | 'zhToEn'
+  questionType: 'enToZh'
   word: Word
   prompt: string
   options: string[]
@@ -63,17 +63,17 @@ export const createQuestion = ({
     }
   }
 
-  const isEnglishToChinese = questionType === 'enToZh'
-  const answer = isEnglishToChinese ? getMeaning(word) : word.text
+  // enToZh - 英译中选择题
+  const answer = getMeaning(word)
   const distractors = getDistractorPool(word, allWords)
-    .map((candidate) => (isEnglishToChinese ? getMeaning(candidate) : candidate.text))
+    .map((candidate) => getMeaning(candidate))
     .filter(Boolean)
 
   return {
     type: 'choice',
     questionType,
     word,
-    prompt: isEnglishToChinese ? word.text : getMeaning(word),
+    prompt: word.text,
     options: rotateOptions(unique([answer, ...distractors]).slice(0, 4), `${word.id}:${questionType}`),
     answer,
   }

@@ -2,7 +2,6 @@ import type { BookId } from '../vocabulary/types'
 
 export type QuestionTypeSettings = {
   enToZh: boolean
-  zhToEn: boolean
   spelling: boolean
 }
 
@@ -35,7 +34,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   unitQuizPassThreshold: 0.8,
   questionTypesEnabled: {
     enToZh: true,
-    zhToEn: true,
     spelling: true,
   },
   soundEnabled: true,

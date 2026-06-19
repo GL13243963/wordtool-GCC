@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { ensureSeedData } from './storage/seed'
+import { preloadSounds } from './domain/study/audioFeedback'
 import './styles/global.css'
 
 const rootElement = document.getElementById('root')
@@ -27,6 +28,7 @@ const renderInitializationError = () => {
 
 ensureSeedData()
   .then(() => {
+    preloadSounds()
     root.render(
       <StrictMode>
         <App />

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { appSettingsSchema } from '../settings/schema'
 import type { QuestionItem, StudySession, TestResult, UnitProgress, WordProgress } from './types'
 
-export const questionTypeSchema = z.enum(['enToZh', 'zhToEn', 'spelling'])
+export const questionTypeSchema = z.enum(['enToZh', 'spelling'])
 export const answerResultSchema = z.enum(['correct', 'wrong', 'fuzzy', 'skipped'])
 
 export const wordProgressSchema = z.object({
@@ -18,7 +18,8 @@ export const wordProgressSchema = z.object({
   fuzzyCount: z.number().int().min(0).max(10_000),
   skippedCount: z.number().int().min(0).max(10_000),
   masteryScore: z.number().min(0).max(100),
-  completedQuestionTypes: z.array(questionTypeSchema).max(3),
+  completedQuestionTypes: z.array(questionTypeSchema).max(2),
+  starred: z.boolean().optional(),
   firstSeenAt: z.number().int().min(0).optional(),
   lastSeenAt: z.number().int().min(0).optional(),
   nextReviewAt: z.number().int().min(0).optional(),

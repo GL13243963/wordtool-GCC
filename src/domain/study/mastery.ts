@@ -7,7 +7,6 @@ const SCORE_LIMITS = {
 
 const QUESTION_SCORE_DELTA: Record<QuestionType, { correct: number; wrong: number }> = {
   enToZh: { correct: 10, wrong: -10 },
-  zhToEn: { correct: 15, wrong: -15 },
   spelling: { correct: 20, wrong: -20 },
 }
 
@@ -45,11 +44,11 @@ const getScoreDelta = (result: AnswerResult, questionType: QuestionType) => {
 const getStatus = (progress: WordProgress, masteryScore: number, result: AnswerResult): WordStatus => {
   if (result === 'wrong' || result === 'fuzzy') return 'learning'
 
-  const hasEnoughQuestionTypes = new Set(progress.completedQuestionTypes).size >= 2
-  const hasSpelling = progress.completedQuestionTypes.includes('spelling')
+  const hasBothStages = new Set(progress.completedQuestionTypes).size >= 2
+    || progress.completedQuestionTypes.includes('spelling')
   const hasEnoughSeenCount = progress.seenCount >= 3
 
-  if (masteryScore >= 80 && hasEnoughQuestionTypes && hasSpelling && hasEnoughSeenCount) {
+  if (masteryScore >= 80 && hasBothStages && hasEnoughSeenCount) {
     return 'mastered'
   }
 

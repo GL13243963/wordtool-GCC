@@ -3,6 +3,7 @@ import { QuestionPanel } from '../components/question/QuestionPanel'
 import { ProgressBar } from '../components/study/ProgressBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { playLessonComplete } from '../domain/study/audioFeedback'
 import { createDailyTaskPlan } from '../domain/study/scheduler'
 import type { AnswerResult, QuestionItem } from '../domain/study/types'
 import type { Word } from '../domain/vocabulary/types'
@@ -18,6 +19,7 @@ type StudyPageProps = {
 export const StudyPage = ({ onNavigate }: StudyPageProps) => {
   const [words, setWords] = useState<Word[]>([])
   const [queue, setQueue] = useState<QuestionItem[]>([])
+  const [progressMap, setProgressMap] = useState<Map<string, any>>(new Map())
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [completedCount, setCompletedCount] = useState(0)
@@ -32,16 +34,17 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
 
     const load = async () => {
       try {
-        const [settings, allWords, progressMap] = await Promise.all([
+        const [settings, allWords, progressData] = await Promise.all([
           getSettings(),
           getAllWords(),
           getProgressMap(),
         ])
         if (cancelled) return
 
-        const plan = createDailyTaskPlan({ words: allWords, progressByWordId: progressMap, settings, now: Date.now() })
+        const plan = createDailyTaskPlan({ words: allWords, progressByWordId: progressData, settings, now: Date.now() })
         setSettings(settings)
         setWords(allWords)
+        setProgressMap(progressData)
         setQueue(plan.questionQueue)
       } catch {
         if (!cancelled) setError('今日任务生成失败，请返回首页后重试。')
@@ -90,6 +93,12 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
       questionType: currentQuestion.questionType,
       answeredAt: Date.now(),
     })
+
+    // 如果是最后一题，播放结算音效
+    if (currentIndex === queue.length - 1) {
+      playLessonComplete(settings?.soundEnabled ?? true)
+    }
+
     moveNext()
   }
 
@@ -139,8 +148,13 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
           allWords={words}
           comboCount={comboCount}
           isFirstEncounter={!seenWordIds.has(currentWord.id)}
+          isStarred={progressMap.get(currentWord.id)?.starred}
           key={currentQuestion.id}
           onAnswer={handleAnswer}
+          onToggleStar={() => {
+            // 刷新 progressMap 以更新收藏状态
+            getProgressMap().then(setProgressMap)
+          }}
           questionType={currentQuestion.questionType}
           soundEnabled={settings?.soundEnabled ?? true}
           word={currentWord}

@@ -3,6 +3,7 @@ import { playAnswerSound, playComboSound, speakEnglish } from '../../domain/stud
 import { createQuestion, evaluateAnswer, type StudyQuestion } from '../../domain/study/questionFactory'
 import type { AnswerResult } from '../../domain/study/types'
 import type { Word } from '../../domain/vocabulary/types'
+import { toggleWordStar } from '../../storage/progressRepository'
 import { Button } from '../ui/Button'
 
 const AUTO_ADVANCE_DELAYS: Record<AnswerResult, number> = {
@@ -19,7 +20,9 @@ export type QuestionPanelProps = {
   soundEnabled: boolean
   isFirstEncounter?: boolean
   comboCount?: number
+  isStarred?: boolean
   onAnswer: (result: AnswerResult) => Promise<void> | void
+  onToggleStar?: (wordId: string) => void
 }
 
 type PendingAnswer = {
@@ -28,12 +31,11 @@ type PendingAnswer = {
 }
 
 const getQuestionInstruction = (questionType: StudyQuestion['questionType']) => {
-  if (questionType === 'enToZh') return '看英文，选择中文意思'
-  if (questionType === 'zhToEn') return '看中文，选择英文单词'
-  return '根据中文意思拼写英文'
+  if (questionType === 'enToZh') return '阶段 1/2：看英文，选择中文意思'
+  return '阶段 2/2：根据中文意思拼写英文'
 }
 
-export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFirstEncounter, comboCount, onAnswer }: QuestionPanelProps) => {
+export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFirstEncounter, comboCount, isStarred, onAnswer, onToggleStar }: QuestionPanelProps) => {
   const question = useMemo(
     () => createQuestion({ word, allWords, questionType }),
     [allWords, questionType, word],
@@ -44,13 +46,18 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
   const [pendingAnswer, setPendingAnswer] = useState<PendingAnswer | null>(null)
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleToggleStar = async () => {
+    await toggleWordStar(word.id)
+    onToggleStar?.(word.id)
+  }
   const hasSubmittedRef = useRef(false)
   const autoAdvanceTimerRef = useRef<number | null>(null)
   const hasAnswered = pendingAnswer !== null
 
-  // 首次出现时自动发音
+  // 首次出现时自动发音（英译中阶段）
   useEffect(() => {
-    if (isFirstEncounter && soundEnabled && questionType !== 'zhToEn') {
+    if (isFirstEncounter && soundEnabled && questionType === 'enToZh') {
       const timer = window.setTimeout(() => {
         speakEnglish(word.text)
       }, 200)
@@ -134,16 +141,21 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
           <div className="question-panel__meta">{getQuestionInstruction(questionType)}</div>
           {word.partOfSpeech && <div className="question-panel__hint">词性：{word.partOfSpeech}</div>}
         </div>
-        {comboCount !== undefined && comboCount >= 2 && (
-          <div className="question-panel__combo">
-            <span className="question-panel__combo-fire">🔥</span>
-            <span className="question-panel__combo-text">连击 ×{comboCount}</span>
-          </div>
-        )}
+        <div className="question-panel__header-actions">
+          <Button className="button--star" onClick={handleToggleStar} type="button" variant="ghost">
+            {isStarred ? '⭐' : '☆'}
+          </Button>
+          {comboCount !== undefined && comboCount >= 2 && (
+            <div className="question-panel__combo">
+              <span className="question-panel__combo-fire">🔥</span>
+              <span className="question-panel__combo-text">连击 ×{comboCount}</span>
+            </div>
+          )}
+        </div>
       </div>
       <div className="question-panel__prompt-row">
         <h2 className="question-panel__prompt">{question.prompt}</h2>
-        {(questionType === 'enToZh' || questionType === 'spelling') && (
+        {questionType === 'enToZh' && (
           <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
             🔊 听发音
           </Button>

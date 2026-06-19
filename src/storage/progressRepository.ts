@@ -91,3 +91,23 @@ export const getStudyStats = async (studentId = DEFAULT_STUDENT_ID) => {
     studyDays,
   }
 }
+
+// 切换单词收藏状态
+export const toggleWordStar = async (wordId: string, studentId = DEFAULT_STUDENT_ID) => {
+  const progress = await db.wordProgress.get(`${studentId}:${wordId}`)
+  if (!progress) return false
+
+  const nextProgress = {
+    ...progress,
+    starred: !progress.starred,
+    updatedAt: Date.now(),
+  }
+  await db.wordProgress.put(nextProgress)
+  return nextProgress.starred
+}
+
+// 获取收藏的单词
+export const getStarredWords = async (studentId = DEFAULT_STUDENT_ID) => {
+  const progress = await getProgressForStudent(studentId)
+  return progress.filter((item) => item.starred)
+}
