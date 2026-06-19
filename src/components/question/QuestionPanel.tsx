@@ -131,6 +131,10 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
       return
     }
 
+    // 答错后显示正确答案并朗读
+    if (soundEnabled) {
+      setTimeout(() => speakEnglish(question.answer), 300)
+    }
     stageAnswer('wrong', `正确拼写：${question.answer}`)
   }
 
@@ -182,7 +186,13 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
         </div>
       ) : (
         <div className="spelling-box">
-          <p className="question-panel__hint">提示：{question.answer.length} 个字符，首字母 {question.answer[0]?.toUpperCase()}</p>
+          <div className="spelling-box__hint-row">
+            <p className="spelling-box__masked-word">{question.maskedWord}</p>
+            <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
+              🔊 听发音
+            </Button>
+          </div>
+          <p className="question-panel__hint">{question.answer.length} 个字符</p>
           <input
             aria-label="输入英文拼写"
             className="spelling-box__input"
@@ -191,7 +201,7 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
             onKeyDown={(event) => {
               if (event.key === 'Enter') handleSpellingSubmit()
             }}
-            placeholder="输入英文单词"
+            placeholder="输入完整单词"
             value={spellingAnswer}
           />
           <Button disabled={hasAnswered || isSubmitting} onClick={handleSpellingSubmit} type="button">提交</Button>

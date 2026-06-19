@@ -2,18 +2,6 @@ import type { AppSettings } from '../settings/types'
 import type { Word } from '../vocabulary/types'
 import type { QuestionItem, WordProgress } from './types'
 
-
-
-const byPriority = (now: number) => (left: WordProgress, right: WordProgress) => {
-  const leftDue = left.nextReviewAt ?? 0
-  const rightDue = right.nextReviewAt ?? 0
-  const leftWrongWeight = left.wrongCount * 10 + left.fuzzyCount * 5
-  const rightWrongWeight = right.wrongCount * 10 + right.fuzzyCount * 5
-
-  if (leftWrongWeight !== rightWrongWeight) return rightWrongWeight - leftWrongWeight
-  return Math.min(leftDue, now) - Math.min(rightDue, now)
-}
-
 export type DailyTaskPlan = {
   newWords: Word[]
   reviewWords: Word[]
@@ -32,21 +20,29 @@ export const createDailyTaskPlan = ({
   now: number
 }): DailyTaskPlan => {
   const currentUnitWords = words.filter((word) => word.unitId === settings.currentUnitId)
-  const newWords = currentUnitWords
-    .filter((word) => !progressByWordId.has(word.id) || progressByWordId.get(word.id)?.status === 'new')
-    .slice(0, settings.dailyNewWordLimit)
 
-  const newWordIds = new Set(newWords.map((word) => word.id))
-  const reviewWords = words
-    .filter((word) => !newWordIds.has(word.id))
-    .filter((word) => {
-      const progress = progressByWordId.get(word.id)
-      return progress?.nextReviewAt !== undefined && progress.nextReviewAt <= now
-    })
-    .sort((left, right) => byPriority(now)(progressByWordId.get(left.id)!, progressByWordId.get(right.id)!))
-    .slice(0, settings.dailyReviewLimit)
+  // 所有单词按优先级排序：错词优先，然后是新词，然后是到复习时间的词
+  const orderedWords = [...currentUnitWords].sort((left, right) => {
+    const leftProgress = progressByWordId.get(left.id)
+    const rightProgress = progressByWordId.get(right.id)
 
-  const orderedWords = [...reviewWords.slice(0, 3), ...newWords, ...reviewWords.slice(3)]
+    // 全新词排后面
+    if (!leftProgress) return 1
+    if (!rightProgress) return -1
+
+    // 错的多的排前面
+    const leftWrong = leftProgress.wrongCount * 10 + leftProgress.fuzzyCount * 5
+    const rightWrong = rightProgress.wrongCount * 10 + rightProgress.fuzzyCount * 5
+
+    return rightWrong - leftWrong
+  })
+
+  const newWords = orderedWords.filter((word) => {
+    const progress = progressByWordId.get(word.id)
+    return !progress || progress.status === 'new'
+  })
+  const reviewWords = orderedWords.filter((word) => newWords.indexOf(word) === -1)
+
   const questionQueue: QuestionItem[] = []
 
   orderedWords.forEach((word, _wordIndex) => {

@@ -1,5 +1,7 @@
 import type { AppSettings } from '../settings/types'
 
+export type StudyMode = 'test' | 'study'
+
 export type QuestionType = 'enToZh' | 'spelling'
 
 export type AnswerResult = 'correct' | 'wrong' | 'fuzzy' | 'skipped'

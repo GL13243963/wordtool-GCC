@@ -4,13 +4,14 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import type { AppSettings } from '../domain/settings/types'
 import { createDailyTaskPlan } from '../domain/study/scheduler'
-import type { WordProgress } from '../domain/study/types'
+import type { StudyMode, WordProgress } from '../domain/study/types'
 import type { Unit, Word } from '../domain/vocabulary/types'
 import { getAllUnits, getAllWords, getProgressMap } from '../storage/progressRepository'
 import { getSettings, saveSettings } from '../storage/settingsRepository'
 
 type HomePageProps = {
   onNavigate: (view: AppView) => void
+  onNavigateToStudy: (mode: StudyMode) => void
 }
 
 type UnitNodeStatus = 'passed' | 'learning' | 'available' | 'upcoming'
@@ -40,7 +41,7 @@ const getUnitNodeStatus = ({
 }
 
 
-export const HomePage = ({ onNavigate }: HomePageProps) => {
+export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [words, setWords] = useState<Word[]>([])
   const [units, setUnits] = useState<Unit[]>([])
@@ -168,9 +169,17 @@ export const HomePage = ({ onNavigate }: HomePageProps) => {
           </div>
         </div>
         <div className="today-task-footer">
-          <Button onClick={() => onNavigate('study')} size="large" type="button">
-            开始学习 · {taskCount} 题
-          </Button>
+          <div className="dual-entry-buttons">
+            <Button onClick={() => onNavigateToStudy('study')} size="large" type="button">
+              📚 开始学习
+            </Button>
+            <Button onClick={() => onNavigateToStudy('test')} size="large" type="button" variant="secondary">
+              🧪 测试模式
+            </Button>
+          </div>
+          <p className="muted" style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px' }}>
+            共 {taskCount} 题 · 测试模式不记录学习进度
+          </p>
         </div>
       </Card>
 
