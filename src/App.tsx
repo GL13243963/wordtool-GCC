@@ -49,11 +49,11 @@ export const App = () => {
       </header>
 
       <main>
-        {state.view === 'home' && <HomePage onNavigate={navigate} onNavigateToStudy={navigateToStudy} />}
+        {state.view === 'home' && <HomePage key={Date.now()} onNavigate={navigate} onNavigateToStudy={navigateToStudy} />}
         {state.view === 'study' && <StudyPage onNavigate={navigate} mode={state.params.mode} />}
-        {state.view === 'wrongWords' && <WrongWordsPage onNavigate={navigate} />}
-        {state.view === 'progress' && <ProgressPage onNavigate={navigate} />}
-        {state.view === 'settings' && <SettingsPage onNavigate={navigate} />}
+        {state.view === 'wrongWords' && <WrongWordsPage key={Date.now()} onNavigate={navigate} />}
+        {state.view === 'progress' && <ProgressPage key={Date.now()} onNavigate={navigate} />}
+        {state.view === 'settings' && <SettingsPage key={Date.now()} onNavigate={navigate} />}
       </main>
     </div>
   )

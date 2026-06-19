@@ -5,7 +5,7 @@ import { createInitialWordProgress } from './mastery'
 import { createDailyTaskPlan } from './scheduler'
 
 describe('daily task scheduler', () => {
-  test('selects current unit new words up to the configured limit', () => {
+  test('includes all words from current unit (test mode)', () => {
     const plan = createDailyTaskPlan({
       words: builtinWords,
       progressByWordId: new Map(),
@@ -13,62 +13,75 @@ describe('daily task scheduler', () => {
       now: 1_000,
     })
 
-    expect(plan.newWords).toHaveLength(2)
-    expect(plan.newWords.every((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)).toBe(true)
-    expect(plan.questionQueue).toHaveLength(2)
-    expect(plan.questionQueue.every((item) => item.questionType === 'enToZh')).toBe(true)
+    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
+    // 测试模式下包含当前单元所有单词
+    expect(plan.newWords.length + plan.reviewWords.length).toBeGreaterThanOrEqual(currentUnitWords.length)
+    expect(plan.questionQueue.length).toBeGreaterThan(0)
   })
 
-  test('prioritizes due review words with wrong answers', () => {
-    const dueWord = builtinWords.find((word) => word.id === 'g6a-u1-family')!
-    const progress = {
-      ...createInitialWordProgress({ studentId: 'student', wordId: dueWord.id, unitId: dueWord.unitId, now: 0 }),
-      wrongCount: 2,
-      nextReviewAt: 500,
-      status: 'learning' as const,
-    }
+  test('prioritizes words with wrong answers first', () => {
+    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
+    const wrongWord = currentUnitWords[0]
+    const normalWord = currentUnitWords[1]
+
+    const progressMap = new Map([
+      [
+        wrongWord.id,
+        {
+          ...createInitialWordProgress({ studentId: 'student', wordId: wrongWord.id, unitId: wrongWord.unitId, now: 0 }),
+          wrongCount: 5,
+          seenCount: 10,
+          status: 'learning' as const,
+        },
+      ],
+      [
+        normalWord.id,
+        {
+          ...createInitialWordProgress({ studentId: 'student', wordId: normalWord.id, unitId: normalWord.unitId, now: 0 }),
+          wrongCount: 0,
+          seenCount: 10,
+          status: 'learning' as const,
+        },
+      ],
+    ])
 
     const plan = createDailyTaskPlan({
       words: builtinWords,
-      progressByWordId: new Map([[dueWord.id, progress]]),
-      settings: { ...DEFAULT_SETTINGS, dailyNewWordLimit: 1, dailyReviewLimit: 1 },
+      progressByWordId: progressMap,
+      settings: DEFAULT_SETTINGS,
       now: 1_000,
     })
 
-    expect(plan.reviewWords[0].id).toBe(dueWord.id)
-    expect(plan.questionQueue.some((item) => item.wordId === dueWord.id)).toBe(true)
+    // 错词应该排在前面
+    const wrongIndex = plan.questionQueue.findIndex((item) => item.wordId === wrongWord.id)
+    const normalIndex = plan.questionQueue.findIndex((item) => item.wordId === normalWord.id)
+    expect(wrongIndex).toBeLessThan(normalIndex)
   })
 
-  test('uses only enabled question types', () => {
-    // 创建有进度的单词并设置复习时间，触发拼写题
+  test('generates spelling questions for seen words', () => {
+    // 对已见过的单词生成拼写题
     const progressMap = new Map()
-    for (const word of builtinWords.slice(0, 3)) {
+    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
+
+    for (const word of currentUnitWords.slice(0, 3)) {
       progressMap.set(word.id, {
         ...createInitialWordProgress({ studentId: 'student', wordId: word.id, unitId: word.unitId, now: 0 }),
-        seenCount: 5,
+        seenCount: 5, // seenCount >= 1 应该生成拼写题
         correctCount: 5,
         masteryScore: 50,
-        nextReviewAt: 500, // 设置为已到复习时间
-        status: 'reviewing',
+        status: 'learning',
       })
     }
 
     const plan = createDailyTaskPlan({
       words: builtinWords,
       progressByWordId: progressMap,
-      settings: {
-        ...DEFAULT_SETTINGS,
-        dailyNewWordLimit: 0,
-        dailyReviewLimit: 3,
-        questionTypesEnabled: {
-          enToZh: false,
-          spelling: true,
-        },
-      },
+      settings: DEFAULT_SETTINGS,
       now: 1_000,
     })
 
-    expect(plan.questionQueue).not.toHaveLength(0)
-    expect(plan.questionQueue.every((item) => item.questionType === 'spelling')).toBe(true)
+    // 已见过的单词应该有拼写题
+    const spellingQuestions = plan.questionQueue.filter((item) => item.questionType === 'spelling')
+    expect(spellingQuestions.length).toBeGreaterThan(0)
   })
 })

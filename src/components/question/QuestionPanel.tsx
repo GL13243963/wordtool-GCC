@@ -41,11 +41,50 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     [allWords, questionType, word],
   )
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
-  const [spellingAnswer, setSpellingAnswer] = useState('')
-  const [spellingAttempts, setSpellingAttempts] = useState(0)
+  const [letterInputs, setLetterInputs] = useState<string[]>([]) // 每个字母的输入
+  const [spellingWrongCount, setSpellingWrongCount] = useState(0) // 拼写错误次数（最多3次）
+  const [showCorrectAnswer, setShowCorrectAnswer] = useState(false) // 是否暂时显示正确答案
   const [pendingAnswer, setPendingAnswer] = useState<PendingAnswer | null>(null)
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // 初始化字母输入框
+  useEffect(() => {
+    if (question.type === 'spelling') {
+      // 用 maskedWord 初始化，显示的字母预填充，隐藏的字母留空
+      const initial = question.maskedWord.split('').map((char) => (char === '_' ? '' : char))
+      setLetterInputs(initial)
+    }
+  }, [question])
+
+  // 单个字母输入变化
+  const handleLetterChange = (index: number, value: string) => {
+    if (showCorrectAnswer || hasAnswered || isSubmitting) return
+
+    // 只允许输入单个字母（保留用户输入的大小写）
+    const letter = value.slice(-1)
+    const newInputs = [...letterInputs]
+    newInputs[index] = letter
+    setLetterInputs(newInputs)
+
+    // 自动聚焦到下一个空的输入框
+    if (letter && index < newInputs.length - 1) {
+      const nextEmpty = newInputs.findIndex((l, i) => i > index && l === '')
+      if (nextEmpty !== -1) {
+        const nextInput = document.querySelector(`[data-letter-index="${nextEmpty}"]`) as HTMLInputElement
+        nextInput?.focus()
+      }
+    }
+  }
+
+  // 处理退格键
+  const handleLetterKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && !letterInputs[index] && index > 0) {
+      // 当前为空，按退格则跳到上一个
+      const prevInput = document.querySelector(`[data-letter-index="${index - 1}"]`) as HTMLInputElement
+      prevInput?.focus()
+    }
+  }
 
   const handleToggleStar = async () => {
     await toggleWordStar(word.id)
@@ -118,24 +157,50 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
 
   const handleSpellingSubmit = () => {
     if (question.type !== 'spelling') return
-    if (!spellingAnswer.trim() || hasAnswered || isSubmitting) return
+    if (hasAnswered || isSubmitting || showCorrectAnswer) return
 
-    const isCorrect = evaluateAnswer(question.answer, spellingAnswer)
+    // 检查是否所有字母都填了
+    if (letterInputs.some((l) => l === '')) {
+      setSubmitError('请填完所有字母')
+      setTimeout(() => setSubmitError(''), 1500)
+      return
+    }
+
+    const userAnswer = letterInputs.join('')
+    const isCorrect = evaluateAnswer(question.answer, userAnswer)
     if (isCorrect) {
       stageAnswer('correct', '拼写正确，马上进入下一题。')
       return
     }
 
-    if (spellingAttempts === 0) {
-      setSpellingAttempts(1)
-      return
-    }
+    // 答错了
+    const newWrongCount = spellingWrongCount + 1
+    setSpellingWrongCount(newWrongCount)
 
-    // 答错后显示正确答案并朗读
+    // 显示正确答案并朗读
+    setShowCorrectAnswer(true)
     if (soundEnabled) {
       setTimeout(() => speakEnglish(question.answer), 300)
     }
-    stageAnswer('wrong', `正确拼写：${question.answer}`)
+
+    // 1.5秒后隐藏答案，重置输入框，让用户重试
+    setTimeout(() => {
+      setShowCorrectAnswer(false)
+      // 重置为 maskedWord 的状态
+      const reset = question.maskedWord.split('').map((char) => (char === '_' ? '' : char))
+      setLetterInputs(reset)
+      // 聚焦第一个空输入框
+      const firstEmpty = reset.findIndex((l) => l === '')
+      if (firstEmpty !== -1) {
+        const firstInput = document.querySelector(`[data-letter-index="${firstEmpty}"]`) as HTMLInputElement
+        firstInput?.focus()
+      }
+    }, 1500)
+
+    // 第3次答错后才标记为错误并进入下一题
+    if (newWrongCount >= 3) {
+      stageAnswer('wrong', `已重试3次，正确拼写：${question.answer}`)
+    }
   }
 
   return (
@@ -187,26 +252,45 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
       ) : (
         <div className="spelling-box">
           <div className="spelling-box__hint-row">
-            <p className="spelling-box__masked-word">{question.maskedWord}</p>
+            <p className="spelling-box__hint-text">根据中文意思，补全单词拼写</p>
             <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
               🔊 听发音
             </Button>
           </div>
-          <p className="question-panel__hint">{question.answer.length} 个字符</p>
-          <input
-            aria-label="输入英文拼写"
-            className="spelling-box__input"
-            disabled={hasAnswered || isSubmitting}
-            onChange={(event) => setSpellingAnswer(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') handleSpellingSubmit()
-            }}
-            placeholder="输入完整单词"
-            value={spellingAnswer}
-          />
-          <Button disabled={hasAnswered || isSubmitting} onClick={handleSpellingSubmit} type="button">提交</Button>
-          {spellingAttempts === 1 && !hasAnswered && (
-            <p className="question-panel__feedback">再试一次，注意拼写。</p>
+
+          {/* 暂时显示正确答案 */}
+          {showCorrectAnswer && !hasAnswered && (
+            <p className="question-panel__feedback question-panel__feedback--wrong">
+              正确答案：{question.answer}
+            </p>
+          )}
+
+          {/* 填字母输入框 */}
+          <div className="letter-inputs">
+            {letterInputs.map((letter, index) => {
+              const isHidden = question.maskedWord[index] === '_'
+              return (
+                <input
+                  key={index}
+                  aria-label={`第${index + 1}个字母`}
+                  className={`letter-input ${isHidden ? 'letter-input--hidden' : 'letter-input--shown'}`}
+                  data-letter-index={index}
+                  disabled={hasAnswered || isSubmitting || showCorrectAnswer || !isHidden}
+                  maxLength={1}
+                  onChange={(event) => handleLetterChange(index, event.target.value)}
+                  onKeyDown={(event) => handleLetterKeyDown(index, event)}
+                  value={letter}
+                />
+              )
+            })}
+          </div>
+
+          <Button disabled={hasAnswered || isSubmitting || showCorrectAnswer} onClick={handleSpellingSubmit} type="button">提交</Button>
+
+          {spellingWrongCount > 0 && !hasAnswered && spellingWrongCount < 3 && (
+            <p className="question-panel__feedback">
+              第 {spellingWrongCount} 次错误，还可以重试 {3 - spellingWrongCount} 次
+            </p>
           )}
         </div>
       )}

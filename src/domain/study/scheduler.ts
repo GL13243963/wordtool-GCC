@@ -45,23 +45,23 @@ export const createDailyTaskPlan = ({
 
   const questionQueue: QuestionItem[] = []
 
+  // 第一阶段：所有单词先生成英译中选择题
   orderedWords.forEach((word, _wordIndex) => {
-    const progress = progressByWordId.get(word.id)
-    let questionIndex = 0
-
-    // 总是生成英译中题
     questionQueue.push({
-      id: `${now}-${word.id}-${questionIndex++}`,
+      id: `${now}-${word.id}-enToZh`,
       wordId: word.id,
       unitId: word.unitId,
       questionType: 'enToZh',
       status: 'pending' as const,
     })
+  })
 
-    // 如果已见过（不是全新单词），额外生成拼写题
+  // 第二阶段：所有已见过的单词生成拼写题
+  orderedWords.forEach((word) => {
+    const progress = progressByWordId.get(word.id)
     if (progress && progress.seenCount >= 1) {
       questionQueue.push({
-        id: `${now}-${word.id}-${questionIndex++}`,
+        id: `${now}-${word.id}-spelling`,
         wordId: word.id,
         unitId: word.unitId,
         questionType: 'spelling',

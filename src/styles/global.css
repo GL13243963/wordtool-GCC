@@ -562,6 +562,28 @@ input {
   gap: 14px;
 }
 
+.spelling-box__hint-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.spelling-box__hint-text {
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.spelling-box__masked-word {
+  font-family: monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.5em;
+  margin: 0;
+}
+
 .spelling-box__input,
 .settings-form input[type='number'],
 .settings-form select {
@@ -570,6 +592,59 @@ input {
   border-radius: var(--radius-lg);
   min-height: 52px;
   padding: 0 14px;
+}
+
+/* 填字母输入框 */
+.letter-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.letter-input {
+  background: white;
+  border: 2px solid rgba(37, 99, 235, 0.18);
+  border-radius: 14px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  height: 56px;
+  padding: 0;
+  text-align: center;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  width: 48px;
+}
+
+.letter-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+  outline: none;
+}
+
+.letter-input--shown {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.28);
+  color: var(--color-primary);
+  cursor: default;
+}
+
+.letter-input--hidden {
+  background: white;
+}
+
+.letter-input:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+@media (max-width: 480px) {
+  .letter-input {
+    font-size: 1.2rem;
+    height: 48px;
+    width: 40px;
+  }
 }
 
 .checkbox-row {
