@@ -55,3 +55,39 @@ export const getActiveSession = (studentId = DEFAULT_STUDENT_ID) =>
     .equals(studentId)
     .filter((session) => session.status === 'active' || session.status === 'paused')
     .last()
+
+// 获取错题列表 - 答错次数大于答对次数或最近一次答错的词
+export const getWrongWords = async (studentId = DEFAULT_STUDENT_ID) => {
+  const progress = await getProgressForStudent(studentId)
+  return progress.filter((item) => {
+    if (item.wrongCount === 0) return false
+    const hasMoreWrong = item.wrongCount > item.correctCount
+    const lastWrong = item.lastAnswerResult === 'wrong'
+    return hasMoreWrong || lastWrong
+  })
+}
+
+// 获取学习统计数据
+export const getStudyStats = async (studentId = DEFAULT_STUDENT_ID) => {
+  const progress = await getProgressForStudent(studentId)
+  const masteredCount = progress.filter((item) => item.status === 'mastered').length
+  const totalCorrect = progress.reduce((sum, item) => sum + item.correctCount, 0)
+  const totalWrong = progress.reduce((sum, item) => sum + item.wrongCount, 0)
+  const totalAnswered = totalCorrect + totalWrong
+  const accuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0
+
+  const studyDays = new Set(
+    progress
+      .filter((item) => item.firstSeenAt)
+      .map((item) => new Date(item.firstSeenAt!).toDateString()),
+  ).size
+
+  return {
+    masteredCount,
+    totalWords: progress.length,
+    totalCorrect,
+    totalWrong,
+    accuracy,
+    studyDays,
+  }
+}

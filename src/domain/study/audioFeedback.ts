@@ -1,5 +1,8 @@
 import type { AnswerResult } from './types'
 
+const BASE_FREQUENCY = 523.25 // C5
+const COMBO_FREQUENCY_STEP = 55 // 每个连击增加的频率 Hz
+
 const SOUND_FREQUENCIES: Partial<Record<AnswerResult, number[]>> = {
   correct: [660, 880],
   wrong: [220, 165],
@@ -12,6 +15,39 @@ const SOUND_DURATION_MS: Record<AnswerResult, number> = {
   wrong: 190,
   fuzzy: 90,
   skipped: 80,
+}
+
+// 连击音效 - 随着连击数音调升高
+export const playComboSound = (comboCount: number, enabled: boolean): void => {
+  if (!enabled || comboCount < 2) return
+
+  try {
+    const audioContext = getAudioContext()
+    if (!audioContext) return
+
+    const now = audioContext.currentTime
+    const gain = audioContext.createGain()
+    const baseFreq = BASE_FREQUENCY + Math.min(comboCount - 2, 8) * COMBO_FREQUENCY_STEP
+    const duration = 100
+
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(0.07, now + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration / 1000)
+    gain.connect(audioContext.destination)
+
+    const oscillator = audioContext.createOscillator()
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(baseFreq, now)
+    oscillator.connect(gain)
+    oscillator.start(now)
+    oscillator.stop(now + duration / 1000)
+
+    window.setTimeout(() => {
+      void audioContext.close()
+    }, duration + 50)
+  } catch {
+    // 静默失败
+  }
 }
 
 const getAudioContext = (): AudioContext | null => {

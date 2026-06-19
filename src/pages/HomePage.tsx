@@ -39,12 +39,6 @@ const getUnitNodeStatus = ({
   return unit.order <= 2 ? 'available' : 'upcoming'
 }
 
-const getStatusText = (status: UnitNodeStatus) => {
-  if (status === 'passed') return '已通关'
-  if (status === 'learning') return '学习中'
-  if (status === 'available') return '可开始'
-  return '建议稍后'
-}
 
 export const HomePage = ({ onNavigate }: HomePageProps) => {
   const [settings, setSettings] = useState<AppSettings | null>(null)
@@ -111,6 +105,15 @@ export const HomePage = ({ onNavigate }: HomePageProps) => {
     (progress) => progress.nextReviewAt !== undefined && progress.nextReviewAt <= Date.now(),
   ).length
 
+  // 统计数据
+  const masteredTotal = Array.from(progressMap.values()).filter((p) => p.status === 'mastered').length
+  const totalCorrect = Array.from(progressMap.values()).reduce((sum, p) => sum + p.correctCount, 0)
+  const studyDays = new Set(
+    Array.from(progressMap.values())
+      .filter((item) => item.firstSeenAt)
+      .map((item) => new Date(item.firstSeenAt!).toDateString()),
+  ).size
+
   const handleSelectUnit = async (unit: Unit) => {
     if (!settings || isSelectingUnit) return
 
@@ -146,41 +149,84 @@ export const HomePage = ({ onNavigate }: HomePageProps) => {
 
   return (
     <div className="page-stack">
-      <Card className="hero-card hero-card--map">
-        <p className="eyebrow">七年级上册学习地图</p>
-        <h1>沿着 Unit 路线一步步闯关</h1>
-        <p className="muted">所有关卡都可以查看和切换，建议按顺序学习。当前关卡会用蓝色高亮。</p>
-        <div className="unit-path" aria-label="七年级上册 Unit 闯关节点图">
-          {currentBookUnits.map((unit) => {
-            const unitWords = words.filter((word) => word.unitId === unit.id)
-            const masteryRate = getUnitMasteryRate(unitWords, progressMap)
-            const hasProgress = unitWords.some((word) => (progressMap.get(word.id)?.seenCount ?? 0) > 0)
-            const status = getUnitNodeStatus({
-              unit,
-              currentUnitId: settings?.currentUnitId ?? '',
-              masteryRate,
-              hasProgress,
-            })
-
-            return (
-              <button
-                className={`unit-node unit-node--${status}`}
-                disabled={isSelectingUnit}
-                key={unit.id}
-                onClick={() => void handleSelectUnit(unit)}
-                type="button"
-              >
-                <span className="unit-node__badge">U{unit.order}</span>
-                <span className="unit-node__title">{unit.title}</span>
-                <span className="unit-node__meta">{getStatusText(status)} · {Math.round(masteryRate * 100)}%</span>
-              </button>
-            )
-          })}
+      {/* 今日任务 - 置顶，全宽大卡片 */}
+      <Card className="hero-card hero-card--today">
+        <div className="today-task-header">
+          <div>
+            <p className="eyebrow">今日任务</p>
+            <h1>开始今天的单词练习</h1>
+          </div>
+          <div className="today-task-stats">
+            <div className="stat-mini">
+              <span className="stat-mini__value">{settings?.dailyNewWordLimit ?? 10}</span>
+              <span className="stat-mini__label">新词</span>
+            </div>
+            <div className="stat-mini">
+              <span className="stat-mini__value">{dueReviewCount}</span>
+              <span className="stat-mini__label">待复习</span>
+            </div>
+          </div>
         </div>
-        {selectionError && <p className="question-panel__feedback question-panel__feedback--error">{selectionError}</p>}
+        <div className="today-task-footer">
+          <Button onClick={() => onNavigate('study')} size="large" type="button">
+            开始学习 · {taskCount} 题
+          </Button>
+        </div>
       </Card>
 
-      <div className="page-grid page-grid--dashboard">
+      {/* 学习统计 */}
+      <div className="stats-grid">
+        <Card className="stat-card">
+          <p className="stat-card__value">{studyDays || 1}</p>
+          <p className="stat-card__label">学习天数</p>
+        </Card>
+        <Card className="stat-card">
+          <p className="stat-card__value">{masteredTotal}</p>
+          <p className="stat-card__label">已掌握单词</p>
+        </Card>
+        <Card className="stat-card">
+          <p className="stat-card__value">{totalCorrect}</p>
+          <p className="stat-card__label">累计答对</p>
+        </Card>
+        <Card className="stat-card">
+          <p className="stat-card__value">{Math.round(currentMasteryRate * 100)}%</p>
+          <p className="stat-card__label">当前单元掌握</p>
+        </Card>
+      </div>
+
+      {/* 学习地图 + 当前单元 */}
+      <div className="page-grid">
+        <Card className="compact-map-card">
+          <p className="eyebrow">学习地图</p>
+          <div className="unit-path unit-path--compact" aria-label="Unit 闯关节点图">
+            {currentBookUnits.map((unit) => {
+              const unitWords = words.filter((word) => word.unitId === unit.id)
+              const masteryRate = getUnitMasteryRate(unitWords, progressMap)
+              const hasProgress = unitWords.some((word) => (progressMap.get(word.id)?.seenCount ?? 0) > 0)
+              const status = getUnitNodeStatus({
+                unit,
+                currentUnitId: settings?.currentUnitId ?? '',
+                masteryRate,
+                hasProgress,
+              })
+
+              return (
+                <button
+                  className={`unit-node unit-node--compact unit-node--${status}`}
+                  disabled={isSelectingUnit}
+                  key={unit.id}
+                  onClick={() => void handleSelectUnit(unit)}
+                  type="button"
+                >
+                  <span className="unit-node__badge unit-node__badge--small">U{unit.order}</span>
+                  <span className="unit-node__meta">{Math.round(masteryRate * 100)}%</span>
+                </button>
+              )
+            })}
+          </div>
+          {selectionError && <p className="question-panel__feedback question-panel__feedback--error">{selectionError}</p>}
+        </Card>
+
         <Card className="current-unit-card">
           <p className="eyebrow">当前关卡</p>
           <h2>{currentUnit?.title ?? '当前单元'}</h2>
@@ -190,19 +236,6 @@ export const HomePage = ({ onNavigate }: HomePageProps) => {
           <div className="mastery-ring" aria-label={`当前掌握率 ${Math.round(currentMasteryRate * 100)}%`}>
             <span>{Math.round(currentMasteryRate * 100)}%</span>
           </div>
-        </Card>
-
-        <Card>
-          <h2>今日任务</h2>
-          <p className="stat-number">{taskCount}</p>
-          <p className="muted">题目会根据掌握情况自动安排，拼写题会在熟悉后出现。</p>
-          <Button onClick={() => onNavigate('study')} type="button">开始今日任务</Button>
-        </Card>
-
-        <Card>
-          <h2>待复习</h2>
-          <p className="stat-number">{dueReviewCount}</p>
-          <p className="muted">到期旧词会优先出现在今日任务中。</p>
         </Card>
       </div>
     </div>

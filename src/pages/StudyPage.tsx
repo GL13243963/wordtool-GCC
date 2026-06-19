@@ -22,6 +22,8 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [completedCount, setCompletedCount] = useState(0)
   const [wrongCount, setWrongCount] = useState(0)
+  const [comboCount, setComboCount] = useState(0)
+  const [seenWordIds, setSeenWordIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -69,7 +71,19 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
   const handleAnswer = async (result: AnswerResult) => {
     if (!currentQuestion || !currentWord) return
 
-    if (result === 'wrong') setWrongCount((count) => count + 1)
+    // 更新连击计数
+    if (result === 'correct') {
+      setComboCount((count) => count + 1)
+    } else if (result === 'wrong') {
+      setWrongCount((count) => count + 1)
+      setComboCount(0)
+    } else {
+      setComboCount(0)
+    }
+
+    // 标记为已见过
+    setSeenWordIds((prev) => new Set([...prev, currentWord.id]))
+
     await submitWordAnswer({
       word: currentWord,
       result,
@@ -123,6 +137,8 @@ export const StudyPage = ({ onNavigate }: StudyPageProps) => {
       <Card className="study-card">
         <QuestionPanel
           allWords={words}
+          comboCount={comboCount}
+          isFirstEncounter={!seenWordIds.has(currentWord.id)}
           key={currentQuestion.id}
           onAnswer={handleAnswer}
           questionType={currentQuestion.questionType}

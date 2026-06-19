@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { playAnswerSound, speakEnglish } from '../../domain/study/audioFeedback'
+import { playAnswerSound, playComboSound, speakEnglish } from '../../domain/study/audioFeedback'
 import { createQuestion, evaluateAnswer, type StudyQuestion } from '../../domain/study/questionFactory'
 import type { AnswerResult } from '../../domain/study/types'
 import type { Word } from '../../domain/vocabulary/types'
@@ -17,6 +17,8 @@ export type QuestionPanelProps = {
   allWords: Word[]
   questionType: StudyQuestion['questionType']
   soundEnabled: boolean
+  isFirstEncounter?: boolean
+  comboCount?: number
   onAnswer: (result: AnswerResult) => Promise<void> | void
 }
 
@@ -31,7 +33,7 @@ const getQuestionInstruction = (questionType: StudyQuestion['questionType']) => 
   return '根据中文意思拼写英文'
 }
 
-export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, onAnswer }: QuestionPanelProps) => {
+export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFirstEncounter, comboCount, onAnswer }: QuestionPanelProps) => {
   const question = useMemo(
     () => createQuestion({ word, allWords, questionType }),
     [allWords, questionType, word],
@@ -45,6 +47,16 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, onAn
   const hasSubmittedRef = useRef(false)
   const autoAdvanceTimerRef = useRef<number | null>(null)
   const hasAnswered = pendingAnswer !== null
+
+  // 首次出现时自动发音
+  useEffect(() => {
+    if (isFirstEncounter && soundEnabled && questionType !== 'zhToEn') {
+      const timer = window.setTimeout(() => {
+        speakEnglish(word.text)
+      }, 200)
+      return () => window.clearTimeout(timer)
+    }
+  }, [isFirstEncounter, soundEnabled, word.text, questionType])
 
   const clearAutoAdvanceTimer = () => {
     if (autoAdvanceTimerRef.current === null) return
@@ -83,6 +95,9 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, onAn
   const stageAnswer = (result: AnswerResult, feedback: string) => {
     if (hasAnswered || isSubmitting) return
     playAnswerSound(result, soundEnabled)
+    if (result === 'correct' && comboCount && comboCount >= 2) {
+      playComboSound(comboCount, soundEnabled)
+    }
     setPendingAnswer({ result, feedback })
   }
 
@@ -114,13 +129,21 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, onAn
 
   return (
     <div className="question-panel">
-      <div>
-        <div className="question-panel__meta">{getQuestionInstruction(questionType)}</div>
-        {word.partOfSpeech && <div className="question-panel__hint">词性：{word.partOfSpeech}</div>}
+      <div className="question-panel__header">
+        <div>
+          <div className="question-panel__meta">{getQuestionInstruction(questionType)}</div>
+          {word.partOfSpeech && <div className="question-panel__hint">词性：{word.partOfSpeech}</div>}
+        </div>
+        {comboCount !== undefined && comboCount >= 2 && (
+          <div className="question-panel__combo">
+            <span className="question-panel__combo-fire">🔥</span>
+            <span className="question-panel__combo-text">连击 ×{comboCount}</span>
+          </div>
+        )}
       </div>
       <div className="question-panel__prompt-row">
         <h2 className="question-panel__prompt">{question.prompt}</h2>
-        {questionType === 'enToZh' && (
+        {(questionType === 'enToZh' || questionType === 'spelling') && (
           <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
             🔊 听发音
           </Button>
