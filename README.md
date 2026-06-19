@@ -2,6 +2,10 @@
 
 给家里初中学生使用的本地优先背单词网页工具。阶段一实现 React + Vite + TypeScript + Dexie 的静态网页版本。
 
+## 🔗 Live Demo
+
+[![Open App](https://img.shields.io/badge/▶%20Run%20App-Visit%20Live%20Site-brightgreen?style=for-the-badge)](https://GL13243963.github.io/wordtool-GCC/)
+
 ## 功能范围
 
 - 内置六上 / 六下示例词库结构
