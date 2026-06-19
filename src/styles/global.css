@@ -612,7 +612,7 @@ input {
   height: 56px;
   padding: 0;
   text-align: center;
-  text-transform: uppercase;
+  text-transform: none;
   transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
   width: 48px;
 }

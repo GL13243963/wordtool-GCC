@@ -7,7 +7,7 @@ export default defineConfig({
     environment: 'jsdom',
     exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
     globals: true,
-    pool: 'forks',
+    pool: 'threads',
     setupFiles: './src/test/setup.ts',
     coverage: {
       reporter: ['text', 'html'],
