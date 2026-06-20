@@ -5,18 +5,28 @@ import { createInitialWordProgress } from './mastery'
 import { createDailyTaskPlan } from './scheduler'
 
 describe('daily task scheduler', () => {
-  test('includes all words from current unit (test mode)', () => {
+  test('limits daily questions to 20 choices and 20 spelling questions', () => {
+    const progressMap = new Map()
+    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
+
+    for (const word of currentUnitWords) {
+      progressMap.set(word.id, {
+        ...createInitialWordProgress({ studentId: 'student', wordId: word.id, unitId: word.unitId, now: 0 }),
+        seenCount: 3,
+        status: 'learning',
+      })
+    }
+
     const plan = createDailyTaskPlan({
       words: builtinWords,
-      progressByWordId: new Map(),
-      settings: { ...DEFAULT_SETTINGS, dailyNewWordLimit: 2, dailyReviewLimit: 20 },
+      progressByWordId: progressMap,
+      settings: DEFAULT_SETTINGS,
       now: 1_000,
     })
 
-    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
-    // 测试模式下包含当前单元所有单词
-    expect(plan.newWords.length + plan.reviewWords.length).toBeGreaterThanOrEqual(currentUnitWords.length)
-    expect(plan.questionQueue.length).toBeGreaterThan(0)
+    expect(plan.questionQueue.filter((item) => item.questionType === 'enToZh')).toHaveLength(Math.min(20, currentUnitWords.length))
+    expect(plan.questionQueue.filter((item) => item.questionType === 'spelling')).toHaveLength(Math.min(20, currentUnitWords.length))
+    expect(plan.questionQueue.length).toBeLessThanOrEqual(40)
   })
 
   test('prioritizes words with wrong answers first', () => {
@@ -56,6 +66,35 @@ describe('daily task scheduler', () => {
     const wrongIndex = plan.questionQueue.findIndex((item) => item.wordId === wrongWord.id)
     const normalIndex = plan.questionQueue.findIndex((item) => item.wordId === normalWord.id)
     expect(wrongIndex).toBeLessThan(normalIndex)
+  })
+
+  test('respects enabled question type settings', () => {
+    const progressMap = new Map()
+    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
+
+    for (const word of currentUnitWords.slice(0, 3)) {
+      progressMap.set(word.id, {
+        ...createInitialWordProgress({ studentId: 'student', wordId: word.id, unitId: word.unitId, now: 0 }),
+        seenCount: 5,
+        status: 'learning',
+      })
+    }
+
+    const plan = createDailyTaskPlan({
+      words: builtinWords,
+      progressByWordId: progressMap,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        questionTypesEnabled: {
+          enToZh: false,
+          spelling: true,
+        },
+      },
+      now: 1_000,
+    })
+
+    expect(plan.questionQueue.length).toBeGreaterThan(0)
+    expect(plan.questionQueue.every((item) => item.questionType === 'spelling')).toBe(true)
   })
 
   test('generates spelling questions for seen words', () => {

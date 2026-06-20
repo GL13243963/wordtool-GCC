@@ -23,6 +23,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 30rem),
     radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.16), transparent 28rem),
@@ -39,6 +40,17 @@ input {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
   padding: 28px 0 48px;
+}
+
+.app-shell--study {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+.app-shell--study main {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app-header--hidden {
@@ -292,7 +304,7 @@ input {
 
 .mastery-ring {
   align-items: center;
-  background: conic-gradient(var(--color-primary) 0deg, var(--color-secondary) 120deg, rgba(37, 99, 235, 0.12) 120deg);
+  background: conic-gradient(var(--color-primary) 0deg, var(--color-secondary) var(--mastery-deg, 0deg), rgba(37, 99, 235, 0.12) var(--mastery-deg, 0deg));
   border-radius: 50%;
   display: inline-flex;
   height: 112px;
@@ -426,6 +438,70 @@ input {
 .study-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(239, 246, 255, 0.86));
   padding: clamp(24px, 4vw, 42px);
+}
+
+.study-layout--focused {
+  align-content: start;
+  gap: 14px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(12px, 2vw, 24px) 0 calc(18px + env(safe-area-inset-bottom));
+}
+
+.study-focus-header {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.study-focus-header h1 {
+  font-size: clamp(1.25rem, 4vw, 2rem);
+  margin: 0;
+}
+
+.study-focus-header__unit {
+  color: var(--color-muted);
+  font-weight: 800;
+  margin: 6px 0 0;
+}
+
+.study-focus-header__actions,
+.study-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.study-card--focused {
+  display: grid;
+  min-height: min(560px, calc(100dvh - 190px));
+  place-items: center;
+}
+
+.study-card--focused .question-panel {
+  width: 100%;
+}
+
+.pause-card,
+.study-result-card {
+  align-self: center;
+  justify-self: center;
+  max-width: 560px;
+  text-align: center;
+  width: min(100%, 560px);
+}
+
+.pause-card h1 {
+  font-size: clamp(3rem, 16vw, 6rem);
+  line-height: 1;
+  margin: 12px 0;
 }
 
 .question-panel {
@@ -779,16 +855,85 @@ input {
 }
 
 @media (max-width: 760px) {
+  .app-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 10px 10px calc(12px + env(safe-area-inset-bottom));
+    width: 100%;
+  }
+
+  .app-shell--study {
+    padding: 0;
+  }
+
   .app-header,
   .page-title-row {
     align-items: flex-start;
     flex-direction: column;
+    margin-bottom: 12px;
   }
 
   .app-nav {
     border-radius: var(--radius-lg);
     flex-wrap: wrap;
     width: 100%;
+  }
+
+  .card {
+    border-radius: 22px;
+    padding: 16px;
+  }
+
+  .hero-card {
+    min-height: auto;
+  }
+
+  .today-task-header,
+  .spelling-box__hint-row,
+  .study-focus-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .today-task-footer,
+  .dual-entry-buttons,
+  .study-focus-header__actions,
+  .study-footer-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-stack,
+  .study-layout {
+    gap: 10px;
+  }
+
+  .study-layout--focused {
+    grid-template-rows: auto auto 1fr;
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .study-card--focused {
+    min-height: calc(100dvh - 176px);
+    padding: 14px;
+    place-items: stretch;
+  }
+
+  .question-panel {
+    gap: 14px;
+  }
+
+  .question-panel__prompt {
+    font-size: clamp(1.8rem, 12vw, 3rem);
+  }
+
+  .choice-option {
+    min-height: 58px;
+    padding: 13px;
   }
 
   .page-grid,

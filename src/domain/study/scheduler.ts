@@ -2,11 +2,39 @@ import type { AppSettings } from '../settings/types'
 import type { Word } from '../vocabulary/types'
 import type { QuestionItem, WordProgress } from './types'
 
+const MAX_DAILY_CHOICE_QUESTIONS = 20
+const MAX_DAILY_SPELLING_QUESTIONS = 20
+
 export type DailyTaskPlan = {
   newWords: Word[]
   reviewWords: Word[]
   questionQueue: QuestionItem[]
 }
+
+const getWordPriority = (_word: Word, progress: WordProgress | undefined, now: number) => {
+  if (!progress) return 20
+
+  const isDue = progress.nextReviewAt !== undefined && progress.nextReviewAt <= now
+  const recencyBoost = progress.lastAnswerResult === 'wrong'
+    ? 60
+    : progress.lastAnswerResult === 'fuzzy'
+      ? 35
+      : 0
+  const weaknessScore = progress.wrongCount * 12 + progress.fuzzyCount * 7
+  const dueScore = isDue ? 25 : 0
+  const lowMasteryScore = Math.max(0, 100 - progress.masteryScore) / 5
+
+  return recencyBoost + weaknessScore + dueScore + lowMasteryScore
+}
+
+const orderWordsForPractice = (words: Word[], progressByWordId: Map<string, WordProgress>, now: number) =>
+  [...words].sort((left, right) => {
+    const rightPriority = getWordPriority(right, progressByWordId.get(right.id), now)
+    const leftPriority = getWordPriority(left, progressByWordId.get(left.id), now)
+
+    if (rightPriority !== leftPriority) return rightPriority - leftPriority
+    return left.id.localeCompare(right.id)
+  })
 
 export const createDailyTaskPlan = ({
   words,
@@ -20,55 +48,36 @@ export const createDailyTaskPlan = ({
   now: number
 }): DailyTaskPlan => {
   const currentUnitWords = words.filter((word) => word.unitId === settings.currentUnitId)
+  const orderedWords = orderWordsForPractice(currentUnitWords, progressByWordId, now)
+  const choiceWords = settings.questionTypesEnabled.enToZh ? orderedWords.slice(0, MAX_DAILY_CHOICE_QUESTIONS) : []
+  const spellingWords = settings.questionTypesEnabled.spelling
+    ? orderedWords
+      .filter((word) => (progressByWordId.get(word.id)?.seenCount ?? 0) >= 1)
+      .slice(0, MAX_DAILY_SPELLING_QUESTIONS)
+    : []
+  const selectedWords = Array.from(new Map([...choiceWords, ...spellingWords].map((word) => [word.id, word])).values())
 
-  // 所有单词按优先级排序：错词优先，然后是新词，然后是到复习时间的词
-  const orderedWords = [...currentUnitWords].sort((left, right) => {
-    const leftProgress = progressByWordId.get(left.id)
-    const rightProgress = progressByWordId.get(right.id)
-
-    // 全新词排后面
-    if (!leftProgress) return 1
-    if (!rightProgress) return -1
-
-    // 错的多的排前面
-    const leftWrong = leftProgress.wrongCount * 10 + leftProgress.fuzzyCount * 5
-    const rightWrong = rightProgress.wrongCount * 10 + rightProgress.fuzzyCount * 5
-
-    return rightWrong - leftWrong
-  })
-
-  const newWords = orderedWords.filter((word) => {
+  const newWords = selectedWords.filter((word) => {
     const progress = progressByWordId.get(word.id)
     return !progress || progress.status === 'new'
   })
-  const reviewWords = orderedWords.filter((word) => newWords.indexOf(word) === -1)
+  const reviewWords = selectedWords.filter((word) => newWords.indexOf(word) === -1)
 
-  const questionQueue: QuestionItem[] = []
+  const choiceQuestions: QuestionItem[] = choiceWords.map((word) => ({
+    id: `${now}-${word.id}-enToZh`,
+    wordId: word.id,
+    unitId: word.unitId,
+    questionType: 'enToZh',
+    status: 'pending' as const,
+  }))
 
-  // 第一阶段：所有单词先生成英译中选择题
-  orderedWords.forEach((word, _wordIndex) => {
-    questionQueue.push({
-      id: `${now}-${word.id}-enToZh`,
-      wordId: word.id,
-      unitId: word.unitId,
-      questionType: 'enToZh',
-      status: 'pending' as const,
-    })
-  })
+  const spellingQuestions: QuestionItem[] = spellingWords.map((word) => ({
+    id: `${now}-${word.id}-spelling`,
+    wordId: word.id,
+    unitId: word.unitId,
+    questionType: 'spelling',
+    status: 'pending' as const,
+  }))
 
-  // 第二阶段：所有已见过的单词生成拼写题
-  orderedWords.forEach((word) => {
-    const progress = progressByWordId.get(word.id)
-    if (progress && progress.seenCount >= 1) {
-      questionQueue.push({
-        id: `${now}-${word.id}-spelling`,
-        wordId: word.id,
-        unitId: word.unitId,
-        questionType: 'spelling',
-        status: 'pending' as const,
-      })
-    }
-  })
-
-  return { newWords, reviewWords, questionQueue }
+  return { newWords, reviewWords, questionQueue: [...choiceQuestions, ...spellingQuestions] }
 }

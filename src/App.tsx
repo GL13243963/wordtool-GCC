@@ -33,7 +33,7 @@ export const App = () => {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isStudyView ? 'app-shell--study' : ''}`}>
       <header className={`app-header ${isStudyView ? 'app-header--hidden' : ''}`}>
         <div>
           <p className="eyebrow">Oxford English</p>

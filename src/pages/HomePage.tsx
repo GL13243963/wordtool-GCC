@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { AppView } from '../App'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import type { AppSettings } from '../domain/settings/types'
+import { getUnitStats } from '../domain/study/progressStats'
 import { createDailyTaskPlan } from '../domain/study/scheduler'
 import type { StudyMode, WordProgress } from '../domain/study/types'
 import type { Unit, Word } from '../domain/vocabulary/types'
@@ -15,13 +16,6 @@ type HomePageProps = {
 }
 
 type UnitNodeStatus = 'passed' | 'learning' | 'available' | 'upcoming'
-
-const getUnitMasteryRate = (unitWords: Word[], progressMap: Map<string, WordProgress>) => {
-  if (unitWords.length === 0) return 0
-
-  const masteredCount = unitWords.filter((word) => progressMap.get(word.id)?.status === 'mastered').length
-  return masteredCount / unitWords.length
-}
 
 const getUnitNodeStatus = ({
   unit,
@@ -100,14 +94,10 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
     () => words.filter((word) => word.unitId === settings?.currentUnitId),
     [settings?.currentUnitId, words],
   )
-  const currentMasteryRate = getUnitMasteryRate(currentUnitWords, progressMap)
-  const masteredCount = currentUnitWords.filter((word) => progressMap.get(word.id)?.status === 'mastered').length
-  const dueReviewCount = Array.from(progressMap.values()).filter(
-    (progress) => progress.nextReviewAt !== undefined && progress.nextReviewAt <= Date.now(),
-  ).length
-
+  const currentUnitStats = getUnitStats(currentUnitWords, progressMap)
+  const currentMasteryRate = currentUnitStats.masteryRate
   // 统计数据
-  const masteredTotal = Array.from(progressMap.values()).filter((p) => p.status === 'mastered').length
+  const learnedTotal = Array.from(progressMap.values()).filter((p) => p.seenCount > 0).length
   const totalCorrect = Array.from(progressMap.values()).reduce((sum, p) => sum + p.correctCount, 0)
   const studyDays = new Set(
     Array.from(progressMap.values())
@@ -159,12 +149,12 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
           </div>
           <div className="today-task-stats">
             <div className="stat-mini">
-              <span className="stat-mini__value">{settings?.dailyNewWordLimit ?? 10}</span>
-              <span className="stat-mini__label">新词</span>
+              <span className="stat-mini__value">20</span>
+              <span className="stat-mini__label">选择题</span>
             </div>
             <div className="stat-mini">
-              <span className="stat-mini__value">{dueReviewCount}</span>
-              <span className="stat-mini__label">待复习</span>
+              <span className="stat-mini__value">20</span>
+              <span className="stat-mini__label">填空题</span>
             </div>
           </div>
         </div>
@@ -190,8 +180,8 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
           <p className="stat-card__label">学习天数</p>
         </Card>
         <Card className="stat-card">
-          <p className="stat-card__value">{masteredTotal}</p>
-          <p className="stat-card__label">已掌握单词</p>
+          <p className="stat-card__value">{learnedTotal}</p>
+          <p className="stat-card__label">已学习单词</p>
         </Card>
         <Card className="stat-card">
           <p className="stat-card__value">{totalCorrect}</p>
@@ -210,8 +200,9 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
           <div className="unit-path unit-path--compact" aria-label="Unit 闯关节点图">
             {currentBookUnits.map((unit) => {
               const unitWords = words.filter((word) => word.unitId === unit.id)
-              const masteryRate = getUnitMasteryRate(unitWords, progressMap)
-              const hasProgress = unitWords.some((word) => (progressMap.get(word.id)?.seenCount ?? 0) > 0)
+              const unitStats = getUnitStats(unitWords, progressMap)
+              const masteryRate = unitStats.masteryRate
+              const hasProgress = unitStats.learnedCount > 0
               const status = getUnitNodeStatus({
                 unit,
                 currentUnitId: settings?.currentUnitId ?? '',
@@ -240,9 +231,13 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
           <p className="eyebrow">当前关卡</p>
           <h2>{currentUnit?.title ?? '当前单元'}</h2>
           <p className="muted">
-            {currentUnit?.grade} {currentUnit?.semester} · 已掌握 {masteredCount} / {currentUnitWords.length} 个词
+            {currentUnit?.grade} {currentUnit?.semester} · 已学习 {currentUnitStats.learnedCount} / {currentUnitWords.length} 个词 · 已掌握 {currentUnitStats.masteredCount} 个
           </p>
-          <div className="mastery-ring" aria-label={`当前掌握率 ${Math.round(currentMasteryRate * 100)}%`}>
+          <div
+            className="mastery-ring"
+            style={{ '--mastery-deg': `${Math.round(currentMasteryRate * 360)}deg` } as CSSProperties}
+            aria-label={`当前掌握率 ${Math.round(currentMasteryRate * 100)}%`}
+          >
             <span>{Math.round(currentMasteryRate * 100)}%</span>
           </div>
         </Card>
