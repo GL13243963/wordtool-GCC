@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { AppView } from '../App'
 import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
 import type { AppSettings } from '../domain/settings/types'
 import { getUnitStats } from '../domain/study/progressStats'
-import { createDailyTaskPlan } from '../domain/study/scheduler'
 import type { StudyMode, WordProgress } from '../domain/study/types'
 import type { Unit, Word } from '../domain/vocabulary/types'
 import { getAllUnits, getAllWords, getProgressMap } from '../storage/progressRepository'
-import { getSettings, saveSettings } from '../storage/settingsRepository'
+import { getSettings } from '../storage/settingsRepository'
 
 type HomePageProps = {
   onNavigate: (view: AppView) => void
@@ -34,15 +32,39 @@ const getUnitNodeStatus = ({
   return unit.order <= 2 ? 'available' : 'upcoming'
 }
 
+const MODES = [
+  {
+    id: 'study' as StudyMode,
+    icon: '📚',
+    title: '学习模式',
+    desc: '按单元顺序，每天智能出题学习',
+    primary: true,
+  },
+  {
+    id: 'wrongWords' as StudyMode,
+    icon: '💪',
+    title: '错题复习',
+    desc: '集中练习历史错题，重点突破',
+  },
+  {
+    id: 'mixed' as StudyMode,
+    icon: '🔀',
+    title: '混合练习',
+    desc: '随机抽取各单元题目，全面巩固',
+  },
+  {
+    id: 'test' as StudyMode,
+    icon: '🧪',
+    title: '测试模式',
+    desc: '纯测试，不记录进度，检验掌握程度',
+  },
+]
 
 export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [words, setWords] = useState<Word[]>([])
   const [units, setUnits] = useState<Unit[]>([])
   const [progressMap, setProgressMap] = useState<Map<string, WordProgress>>(new Map())
-  const [taskCount, setTaskCount] = useState(0)
-  const [isSelectingUnit, setIsSelectingUnit] = useState(false)
-  const [selectionError, setSelectionError] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -59,15 +81,7 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
         ])
         if (cancelled) return
 
-        const plan = createDailyTaskPlan({
-          words: nextWords,
-          progressByWordId: nextProgressMap,
-          settings: nextSettings,
-          now: Date.now(),
-        })
-
         setSettings(nextSettings)
-        setTaskCount(plan.questionQueue.length)
         setWords(nextWords)
         setUnits(nextUnits)
         setProgressMap(nextProgressMap)
@@ -95,152 +109,130 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
     [settings?.currentUnitId, words],
   )
   const currentUnitStats = getUnitStats(currentUnitWords, progressMap)
-  const currentMasteryRate = currentUnitStats.masteryRate
+  const currentMasteryRate = Math.round(currentUnitStats.masteryRate * 100)
+
   // 统计数据
   const learnedTotal = Array.from(progressMap.values()).filter((p) => p.seenCount > 0).length
-  const totalCorrect = Array.from(progressMap.values()).reduce((sum, p) => sum + p.correctCount, 0)
+  const weakWords = Array.from(progressMap.values()).filter((p) => p.wrongCount > p.correctCount && p.seenCount > 2).length
   const studyDays = new Set(
     Array.from(progressMap.values())
       .filter((item) => item.firstSeenAt)
       .map((item) => new Date(item.firstSeenAt!).toDateString()),
   ).size
 
-  const handleSelectUnit = async (unit: Unit) => {
-    if (!settings || isSelectingUnit) return
-
-    setIsSelectingUnit(true)
-    setSelectionError('')
-    try {
-      const nextSettings = await saveSettings({
-        ...settings,
-        currentBookId: unit.bookId,
-        currentUnitId: unit.id,
-      })
-      const plan = createDailyTaskPlan({ words, progressByWordId: progressMap, settings: nextSettings, now: Date.now() })
-      setSettings(nextSettings)
-      setTaskCount(plan.questionQueue.length)
-    } catch {
-      setSelectionError('切换 Unit 失败，请稍后重试。')
-    } finally {
-      setIsSelectingUnit(false)
-    }
+  if (loading) {
+    return (
+      <div className="home-centered">
+        <div className="loading-placeholder">
+          <p>正在加载学习数据……</p>
+        </div>
+      </div>
+    )
   }
-
-  if (loading) return <Card><p>正在加载学习数据……</p></Card>
 
   if (error) {
     return (
-      <Card className="center-card">
-        <h1>首页加载失败</h1>
-        <p className="muted">{error}</p>
-        <Button onClick={() => onNavigate('settings')} type="button">打开设置与备份</Button>
-      </Card>
+      <div className="home-centered">
+        <div className="error-card">
+          <h2>首页加载失败</h2>
+          <p className="muted">{error}</p>
+          <Button onClick={() => onNavigate('settings')} type="button">
+            打开设置与备份
+          </Button>
+        </div>
+      </div>
     )
   }
 
   return (
-    <div className="page-stack">
-      {/* 今日任务 - 置顶，全宽大卡片 */}
-      <Card className="hero-card hero-card--today">
-        <div className="today-task-header">
-          <div>
-            <p className="eyebrow">今日任务</p>
-            <h1>开始今天的单词练习</h1>
-          </div>
-          <div className="today-task-stats">
-            <div className="stat-mini">
-              <span className="stat-mini__value">20</span>
-              <span className="stat-mini__label">选择题</span>
-            </div>
-            <div className="stat-mini">
-              <span className="stat-mini__value">20</span>
-              <span className="stat-mini__label">填空题</span>
-            </div>
-          </div>
-        </div>
-        <div className="today-task-footer">
-          <div className="dual-entry-buttons">
-            <Button onClick={() => onNavigateToStudy('study')} size="large" type="button">
-              📚 开始学习
-            </Button>
-            <Button onClick={() => onNavigateToStudy('test')} size="large" type="button" variant="secondary">
-              🧪 测试模式
-            </Button>
-          </div>
-          <p className="muted" style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px' }}>
-            共 {taskCount} 题 · 测试模式不记录学习进度
-          </p>
-        </div>
-      </Card>
+    <div className="home-stack">
+      {/* 标题区域 */}
+      <header className="home-header">
+        <h1 className="home-title">牛津单词闯关</h1>
+        <p className="home-subtitle">积跬步，至千里</p>
+      </header>
 
-      {/* 学习统计 */}
-      <div className="stats-grid">
-        <Card className="stat-card">
-          <p className="stat-card__value">{studyDays || 1}</p>
-          <p className="stat-card__label">学习天数</p>
-        </Card>
-        <Card className="stat-card">
-          <p className="stat-card__value">{learnedTotal}</p>
-          <p className="stat-card__label">已学习单词</p>
-        </Card>
-        <Card className="stat-card">
-          <p className="stat-card__value">{totalCorrect}</p>
-          <p className="stat-card__label">累计答对</p>
-        </Card>
-        <Card className="stat-card">
-          <p className="stat-card__value">{Math.round(currentMasteryRate * 100)}%</p>
-          <p className="stat-card__label">当前单元掌握</p>
-        </Card>
+      {/* 进度总览卡片 */}
+      <div className="progress-overview-card">
+        <div className="big-progress-row">
+          <div
+            className="progress-ring"
+            style={{ '--mastery-angle': `${currentMasteryRate * 3.6}deg` } as CSSProperties}
+          >
+            <div className="progress-ring-inner">
+              <span className="progress-number">{currentMasteryRate}%</span>
+              <span className="progress-label">掌握度</span>
+            </div>
+          </div>
+
+          <div className="progress-stats-grid">
+            <div className="stat-mini-item">
+              <span className="stat-mini-num">{learnedTotal}</span>
+              <span className="stat-mini-label">已学单词</span>
+            </div>
+            <div className="stat-mini-item">
+              <span className="stat-mini-num">{weakWords}</span>
+              <span className="stat-mini-label">待巩固</span>
+            </div>
+            <div className="stat-mini-item">
+              <span className="stat-mini-num">{studyDays}</span>
+              <span className="stat-mini-label">学习天数</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 当前单元信息 */}
+        <div className="current-unit-info">
+          <span className="current-unit-badge">当前单元</span>
+          <span className="current-unit-title">{currentUnit?.title ?? '未选择'}</span>
+        </div>
+
+        {/* 极简单元进度点 */}
+        <div className="unit-dots-map">
+          {currentBookUnits.map((unit) => {
+            const unitWords = words.filter((word) => word.unitId === unit.id)
+            const unitStats = getUnitStats(unitWords, progressMap)
+            const masteryRate = unitStats.masteryRate
+            const hasProgress = unitStats.learnedCount > 0
+            const status = getUnitNodeStatus({
+              unit,
+              currentUnitId: settings?.currentUnitId ?? '',
+              masteryRate,
+              hasProgress,
+            })
+
+            return <div className={`unit-dot unit-dot--${status}`} key={unit.id} title={`${unit.title} - ${Math.round(masteryRate * 100)}%`} />
+          })}
+        </div>
       </div>
 
-      {/* 学习地图 + 当前单元 */}
-      <div className="page-grid">
-        <Card className="compact-map-card">
-          <p className="eyebrow">学习地图</p>
-          <div className="unit-path unit-path--compact" aria-label="Unit 闯关节点图">
-            {currentBookUnits.map((unit) => {
-              const unitWords = words.filter((word) => word.unitId === unit.id)
-              const unitStats = getUnitStats(unitWords, progressMap)
-              const masteryRate = unitStats.masteryRate
-              const hasProgress = unitStats.learnedCount > 0
-              const status = getUnitNodeStatus({
-                unit,
-                currentUnitId: settings?.currentUnitId ?? '',
-                masteryRate,
-                hasProgress,
-              })
+      {/* 学习模式选择 */}
+      <section className="modes-section">
+        <h2 className="section-label">选择学习模式</h2>
+        <div className="modes-list">
+          {MODES.map((mode) => (
+            <button
+              className={`mode-button ${mode.primary ? 'mode-button--primary' : ''}`}
+              key={mode.id}
+              onClick={() => onNavigateToStudy(mode.id)}
+              type="button"
+            >
+              <span className="mode-icon">{mode.icon}</span>
+              <div className="mode-content">
+                <h3 className="mode-title">{mode.title}</h3>
+                <p className="mode-desc">{mode.desc}</p>
+              </div>
+              <span className="mode-arrow">→</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
-              return (
-                <button
-                  className={`unit-node unit-node--compact unit-node--${status}`}
-                  disabled={isSelectingUnit}
-                  key={unit.id}
-                  onClick={() => void handleSelectUnit(unit)}
-                  type="button"
-                >
-                  <span className="unit-node__badge unit-node__badge--small">U{unit.order}</span>
-                  <span className="unit-node__meta">{Math.round(masteryRate * 100)}%</span>
-                </button>
-              )
-            })}
-          </div>
-          {selectionError && <p className="question-panel__feedback question-panel__feedback--error">{selectionError}</p>}
-        </Card>
-
-        <Card className="current-unit-card">
-          <p className="eyebrow">当前关卡</p>
-          <h2>{currentUnit?.title ?? '当前单元'}</h2>
-          <p className="muted">
-            {currentUnit?.grade} {currentUnit?.semester} · 已学习 {currentUnitStats.learnedCount} / {currentUnitWords.length} 个词 · 已掌握 {currentUnitStats.masteredCount} 个
-          </p>
-          <div
-            className="mastery-ring"
-            style={{ '--mastery-deg': `${Math.round(currentMasteryRate * 360)}deg` } as CSSProperties}
-            aria-label={`当前掌握率 ${Math.round(currentMasteryRate * 100)}%`}
-          >
-            <span>{Math.round(currentMasteryRate * 100)}%</span>
-          </div>
-        </Card>
+      {/* 底部设置入口 */}
+      <div className="home-footer">
+        <Button className="button--ghost" onClick={() => onNavigate('settings')} type="button">
+          ⚙️ 设置与数据管理
+        </Button>
       </div>
     </div>
   )
