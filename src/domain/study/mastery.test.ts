@@ -42,6 +42,21 @@ describe('mastery algorithm', () => {
     expect(next.status).toBe('learning')
   })
 
+  test('records read-aloud practice with its own score delta', () => {
+    const progress = createInitialWordProgress({ studentId: 'student', wordId: 'word', unitId: 'unit', now: 0 })
+
+    const next = applyAnswerToProgress({
+      progress,
+      result: 'correct',
+      questionType: 'readAloud',
+      answeredAt: 2_500,
+    })
+
+    expect(next.masteryScore).toBe(15)
+    expect(next.completedQuestionTypes).toContain('readAloud')
+    expect(next.correctCount).toBe(1)
+  })
+
   test('marks a word as mastered only after enough varied successful practice', () => {
     const progress: WordProgress = {
       ...createInitialWordProgress({ studentId: 'student', wordId: 'word', unitId: 'unit', now: 0 }),

@@ -36,45 +36,35 @@ describe('questionFactory', () => {
     expect(evaluateAnswer(question.answer, ' Family ')).toBe(true)
   })
 
-  test('uses full spelling masks for 50% of spelling questions', () => {
-    const words = Array.from({ length: 10 }, (_, index) => createSyntheticWord(`word-${index}`, `word${String.fromCharCode(97 + index)}`))
-    const spellingQuestions = words.map((word) => createQuestion({ word, allWords: words, questionType: 'spelling' }))
-    const fullSpellingCount = spellingQuestions.filter(
-      (question) => question.type === 'spelling' && question.maskedWord === '_'.repeat(question.answer.length),
-    ).length
-
-    expect(fullSpellingCount).toBe(5)
-  })
-
-  test('displays spelling masks in lowercase while keeping answers case-insensitive', () => {
-    const word = createSyntheticWord('odd-id', 'Family')
+  test('creates chunk-button spelling questions', () => {
+    const word = createSyntheticWord('chunk-family', 'Family')
     const question = createQuestion({ word, allWords: [word], questionType: 'spelling' })
 
     expect(question.type).toBe('spelling')
     if (question.type !== 'spelling') throw new Error('Expected a spelling question')
-    expect(question.maskedWord).toBe(question.maskedWord.toLocaleLowerCase())
     expect(question.answer).toBe('Family')
+    expect(question.answerChunks.join('')).toBe('family')
+    expect(question.chunkOptions).toEqual(expect.arrayContaining(question.answerChunks))
     expect(evaluateAnswer(question.answer, 'family')).toBe(true)
   })
 
-  test('keeps spaces and punctuation visible in phrase spelling masks', () => {
+  test('keeps spaces and punctuation in spelling chunks', () => {
     const word = createSyntheticWord('phrase-even', "Take somebody's place")
     const question = createQuestion({ word, allWords: [word], questionType: 'spelling' })
 
     expect(question.type).toBe('spelling')
     if (question.type !== 'spelling') throw new Error('Expected a spelling question')
-    expect(question.maskedWord).toContain(' ')
-    expect(question.maskedWord).toContain("'")
-    expect(question.maskedWord.replace(/_/g, '')).toBe(" ' ")
+    expect(question.answerChunks.join('')).toBe("take somebody's place")
+    expect(question.answerChunks).toContain(' ')
+    expect(question.answerChunks).toContain("'")
   })
 
-  test('creates partial masks for 17-letter words without hanging', () => {
-    const word = createSyntheticWord('partial-seventeen', 'abcdefghijklmnopq')
-    const question = createQuestion({ word, allWords: [word], questionType: 'spelling' })
+  test('creates read-aloud questions', () => {
+    const word = createSyntheticWord('read-family', 'family')
+    const question = createQuestion({ word, allWords: [word], questionType: 'readAloud' })
 
-    expect(question.type).toBe('spelling')
-    if (question.type !== 'spelling') throw new Error('Expected a spelling question')
-    expect(question.maskedWord).toContain('_')
-    expect(question.maskedWord).not.toBe('_'.repeat(word.text.length))
+    expect(question.type).toBe('readAloud')
+    expect(question.prompt).toBe('family 的中文')
+    expect(question.answer).toBe('family')
   })
 })

@@ -1,7 +1,20 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { builtinWords } from '../../data/vocabulary'
+import type { Word } from '../../domain/vocabulary/types'
 import { QuestionPanel } from './QuestionPanel'
+
+const createWord = (id: string, text: string): Word => ({
+  id,
+  bookId: 'grade-7a',
+  grade: '七年级',
+  semester: '上册',
+  unitId: 'unit-1',
+  unitTitle: 'Unit 1',
+  text,
+  meaningZh: [text],
+  source: 'builtin',
+})
 
 describe('QuestionPanel', () => {
   beforeEach(() => {
@@ -38,13 +51,13 @@ describe('QuestionPanel', () => {
     expect(onAnswer).toHaveBeenCalledWith('correct')
   })
 
-  test('gives spelling three retries before marking wrong', async () => {
+  test('builds spelling answers from chunk buttons without text inputs', async () => {
     const onAnswer = vi.fn()
-    const word = builtinWords.find((item) => item.text === 'guitar')!
+    const word = createWord('chunk-cat', 'cat')
 
     const { container } = render(
       <QuestionPanel
-        allWords={builtinWords}
+        allWords={[word]}
         onAnswer={onAnswer}
         questionType="spelling"
         soundEnabled={false}
@@ -52,35 +65,86 @@ describe('QuestionPanel', () => {
       />,
     )
 
-    const fillHiddenLetter = (letter: string) => {
-      const hiddenInput = container.querySelector('.letter-input--hidden') as HTMLInputElement
-      fireEvent.change(hiddenInput, { target: { value: letter } })
+    expect(container.querySelector('.letter-input')).toBeNull()
+
+    for (const chunk of ['c', 'a', 't']) {
+      fireEvent.click(screen.getByRole('button', { name: chunk }))
+    }
+    fireEvent.click(screen.getByRole('button', { name: '提交' }))
+
+    expect(screen.getByText('拼写正确，马上进入下一题。')).toBeTruthy()
+
+    await act(async () => {
+      vi.advanceTimersByTime(900)
+    })
+
+    expect(onAnswer).toHaveBeenCalledWith('correct')
+  })
+
+  test('shows read-aloud unsupported fallback and can skip', async () => {
+    const onAnswer = vi.fn()
+    const word = createWord('read-cat', 'cat')
+
+    render(
+      <QuestionPanel
+        allWords={[word]}
+        onAnswer={onAnswer}
+        questionType="readAloud"
+        soundEnabled={false}
+        word={word}
+      />,
+    )
+
+    expect(screen.getByText(/当前浏览器不支持语音识别/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '跳过本题' }))
+
+    await act(async () => {
+      vi.advanceTimersByTime(700)
+    })
+
+    expect(onAnswer).toHaveBeenCalledWith('skipped')
+  })
+
+  test('gives spelling three retries before marking wrong', async () => {
+    const onAnswer = vi.fn()
+    const word = createWord('wrong-cat', 'cat')
+
+    const { container } = render(
+      <QuestionPanel
+        allWords={[word]}
+        onAnswer={onAnswer}
+        questionType="spelling"
+        soundEnabled={false}
+        word={word}
+      />,
+    )
+
+    const selectWrongChunk = () => {
+      const wrongButton = Array.from(container.querySelectorAll('.chunk-option')).find(
+        (button) => !['c', 'a', 't'].includes(button.textContent ?? ''),
+      ) as HTMLButtonElement
+      fireEvent.click(wrongButton)
     }
 
-    // 第1次错误 - 输入错误字母
-    fillHiddenLetter('x')
+    selectWrongChunk()
     fireEvent.click(screen.getByRole('button', { name: '提交' }))
     expect(screen.getByText('第 1 次错误，还可以重试 2 次')).toBeTruthy()
     expect(onAnswer).not.toHaveBeenCalled()
 
-    // 等待1.5秒让输入框重置
     await act(async () => {
       vi.advanceTimersByTime(1500)
     })
 
-    // 第2次错误
-    fillHiddenLetter('y')
+    selectWrongChunk()
     fireEvent.click(screen.getByRole('button', { name: '提交' }))
     expect(screen.getByText('第 2 次错误，还可以重试 1 次')).toBeTruthy()
     expect(onAnswer).not.toHaveBeenCalled()
 
-    // 等待1.5秒让输入框重置
     await act(async () => {
       vi.advanceTimersByTime(1500)
     })
 
-    // 第3次错误 - 这次应该标记为 wrong
-    fillHiddenLetter('z')
+    selectWrongChunk()
     fireEvent.click(screen.getByRole('button', { name: '提交' }))
 
     await act(async () => {

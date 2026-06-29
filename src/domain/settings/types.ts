@@ -3,6 +3,7 @@ import type { BookId } from '../vocabulary/types'
 export type QuestionTypeSettings = {
   enToZh: boolean
   spelling: boolean
+  readAloud: boolean
 }
 
 export type AppSettings = {
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   questionTypesEnabled: {
     enToZh: true,
     spelling: true,
+    readAloud: true,
   },
   soundEnabled: true,
   updatedAt: 0,

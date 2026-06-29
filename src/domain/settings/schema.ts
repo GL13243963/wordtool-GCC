@@ -4,8 +4,9 @@ import type { AppSettings } from './types'
 export const questionTypeSettingsSchema = z.object({
   enToZh: z.boolean(),
   spelling: z.boolean(),
+  readAloud: z.boolean().default(true),
 }).refine(
-  (value) => value.enToZh || value.spelling,
+  (value) => value.enToZh || value.spelling || value.readAloud,
   '至少需要启用一种题型',
 )
 

@@ -1,3 +1,4 @@
+import { speakWord, type SpeechRate } from './speech'
 import type { AnswerResult } from './types'
 
 // 音效资源映射
@@ -137,16 +138,6 @@ export const playComboSound = (comboCount: number, enabled: boolean): void => {
   }
 }
 
-export const speakEnglish = (text: string): void => {
-  try {
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return
-
-    window.speechSynthesis.cancel()
-    const utterance = new window.SpeechSynthesisUtterance(text)
-    utterance.lang = 'en-US'
-    utterance.rate = 0.88
-    window.speechSynthesis.speak(utterance)
-  } catch {
-    // Speech synthesis support varies by browser/WebView; ignore failures.
-  }
+export const speakEnglish = (text: string, rate: SpeechRate = 'normal'): void => {
+  speakWord(text, rate)
 }

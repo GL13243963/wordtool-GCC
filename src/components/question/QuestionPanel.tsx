@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { playAnswerSound, playComboSound, speakEnglish } from '../../domain/study/audioFeedback'
-import { createQuestion, evaluateAnswer, type StudyQuestion } from '../../domain/study/questionFactory'
+import { normalizeBuiltAnswer, normalizeChunkComparison } from '../../domain/study/chunking'
+import { createQuestion, type StudyQuestion } from '../../domain/study/questionFactory'
+import { isSpeechRecognitionSupported, recognizeEnglishOnce, scoreReadAloud } from '../../domain/study/speechRecognition'
 import type { AnswerResult } from '../../domain/study/types'
 import type { Word } from '../../domain/vocabulary/types'
 import { toggleWordStar } from '../../storage/progressRepository'
@@ -12,6 +14,8 @@ const AUTO_ADVANCE_DELAYS: Record<AnswerResult, number> = {
   fuzzy: 800,
   skipped: 700,
 }
+
+const MAX_ATTEMPTS = 3
 
 export type QuestionPanelProps = {
   word: Word
@@ -31,8 +35,9 @@ type PendingAnswer = {
 }
 
 const getQuestionInstruction = (questionType: StudyQuestion['questionType']) => {
-  if (questionType === 'enToZh') return '阶段 1/2：看英文，选择中文意思'
-  return '阶段 2/2：根据中文意思拼写英文'
+  if (questionType === 'enToZh') return '阶段 1/3：看英文，选择中文意思'
+  if (questionType === 'spelling') return '阶段 2/3：按音节块拼出英文'
+  return '阶段 3/3：朗读英文单词'
 }
 
 export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFirstEncounter, comboCount, isStarred, onAnswer, onToggleStar }: QuestionPanelProps) => {
@@ -41,50 +46,16 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     [allWords, questionType, word],
   )
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
-  const [letterInputs, setLetterInputs] = useState<string[]>([]) // 每个字母的输入
-  const [spellingWrongCount, setSpellingWrongCount] = useState(0) // 拼写错误次数（最多3次）
-  const [showCorrectAnswer, setShowCorrectAnswer] = useState(false) // 是否暂时显示正确答案
+  const [selectedChunkIndices, setSelectedChunkIndices] = useState<number[]>([])
+  const [spellingWrongCount, setSpellingWrongCount] = useState(0)
+  const [showCorrectAnswer, setShowCorrectAnswer] = useState(false)
+  const [readAloudAttemptCount, setReadAloudAttemptCount] = useState(0)
+  const [isListening, setIsListening] = useState(false)
+  const [recognizedTranscript, setRecognizedTranscript] = useState('')
+  const [recognitionError, setRecognitionError] = useState('')
   const [pendingAnswer, setPendingAnswer] = useState<PendingAnswer | null>(null)
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // 初始化字母输入框
-  useEffect(() => {
-    if (question.type === 'spelling') {
-      // 用 maskedWord 初始化，显示的字母预填充，隐藏的字母留空
-      const initial = question.maskedWord.split('').map((char) => (char === '_' ? '' : char))
-      setLetterInputs(initial)
-    }
-  }, [question])
-
-  // 单个字母输入变化
-  const handleLetterChange = (index: number, value: string) => {
-    if (showCorrectAnswer || hasAnswered || isSubmitting) return
-
-    // 只允许输入单个字母（保留用户输入的大小写）
-    const letter = value.slice(-1)
-    const newInputs = [...letterInputs]
-    newInputs[index] = letter
-    setLetterInputs(newInputs)
-
-    // 自动聚焦到下一个空的输入框
-    if (letter && index < newInputs.length - 1) {
-      const nextEmpty = newInputs.findIndex((l, i) => i > index && l === '')
-      if (nextEmpty !== -1) {
-        const nextInput = document.querySelector(`[data-letter-index="${nextEmpty}"]`) as HTMLInputElement
-        nextInput?.focus()
-      }
-    }
-  }
-
-  // 处理退格键
-  const handleLetterKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Backspace' && !letterInputs[index] && index > 0) {
-      // 当前为空，按退格则跳到上一个
-      const prevInput = document.querySelector(`[data-letter-index="${index - 1}"]`) as HTMLInputElement
-      prevInput?.focus()
-    }
-  }
 
   const handleToggleStar = async () => {
     await toggleWordStar(word.id)
@@ -92,7 +63,23 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
   }
   const hasSubmittedRef = useRef(false)
   const autoAdvanceTimerRef = useRef<number | null>(null)
+  const resetTimerRef = useRef<number | null>(null)
   const hasAnswered = pendingAnswer !== null
+  const speechRecognitionSupported = typeof window !== 'undefined' && isSpeechRecognitionSupported()
+
+  useEffect(() => {
+    setSelectedAnswer(null)
+    setSelectedChunkIndices([])
+    setSpellingWrongCount(0)
+    setShowCorrectAnswer(false)
+    setReadAloudAttemptCount(0)
+    setIsListening(false)
+    setRecognizedTranscript('')
+    setRecognitionError('')
+    setSubmitError('')
+    setPendingAnswer(null)
+    hasSubmittedRef.current = false
+  }, [question])
 
   // 首次出现时自动发音（英译中阶段）
   useEffect(() => {
@@ -104,12 +91,27 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     }
   }, [isFirstEncounter, soundEnabled, word.text, questionType])
 
+  useEffect(() => {
+    if (soundEnabled && questionType === 'readAloud') {
+      const timer = window.setTimeout(() => speakEnglish(word.text), 300)
+      return () => window.clearTimeout(timer)
+    }
+  }, [questionType, soundEnabled, word.text])
+
   const clearAutoAdvanceTimer = () => {
     if (autoAdvanceTimerRef.current === null) return
 
     window.clearTimeout(autoAdvanceTimerRef.current)
     autoAdvanceTimerRef.current = null
   }
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current !== null) {
+        window.clearTimeout(resetTimerRef.current)
+      }
+    }
+  }, [])
 
   const handleNext = async () => {
     if (!pendingAnswer || isSubmitting || hasSubmittedRef.current) return
@@ -155,53 +157,127 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     stageAnswer(isCorrect ? 'correct' : 'wrong', isCorrect ? '回答正确，马上进入下一题。' : `正确答案：${question.answer}`)
   }
 
+  const handleSelectChunk = (chunkIndex: number) => {
+    if (question.type !== 'spelling') return
+    if (hasAnswered || isSubmitting || showCorrectAnswer) return
+    if (selectedChunkIndices.includes(chunkIndex)) return
+
+    setSelectedChunkIndices((indices) => [...indices, chunkIndex])
+    setSubmitError('')
+  }
+
+  const handleUndoChunk = () => {
+    if (hasAnswered || isSubmitting || showCorrectAnswer) return
+    setSelectedChunkIndices((indices) => indices.slice(0, -1))
+  }
+
+  const handleClearChunks = () => {
+    if (hasAnswered || isSubmitting || showCorrectAnswer) return
+    setSelectedChunkIndices([])
+  }
+
+  const resetSpellingSelectionSoon = () => {
+    if (resetTimerRef.current !== null) {
+      window.clearTimeout(resetTimerRef.current)
+    }
+
+    resetTimerRef.current = window.setTimeout(() => {
+      setShowCorrectAnswer(false)
+      setSelectedChunkIndices([])
+      resetTimerRef.current = null
+    }, 1500)
+  }
+
   const handleSpellingSubmit = () => {
     if (question.type !== 'spelling') return
     if (hasAnswered || isSubmitting || showCorrectAnswer) return
 
-    // 检查是否所有字母都填了
-    if (letterInputs.some((l) => l === '')) {
-      setSubmitError('请填完所有字母')
+    if (selectedChunkIndices.length === 0) {
+      setSubmitError('请先选择字母组合')
       setTimeout(() => setSubmitError(''), 1500)
       return
     }
 
-    const userAnswer = letterInputs.join('')
-    const isCorrect = evaluateAnswer(question.answer, userAnswer)
+    const selectedChunks = selectedChunkIndices.map((chunkIndex) => question.chunkOptions[chunkIndex])
+    const userAnswer = normalizeBuiltAnswer(selectedChunks)
+    const isCorrect = normalizeChunkComparison(userAnswer) === normalizeChunkComparison(question.answer)
     if (isCorrect) {
       stageAnswer('correct', '拼写正确，马上进入下一题。')
       return
     }
 
-    // 答错了
     const newWrongCount = spellingWrongCount + 1
     setSpellingWrongCount(newWrongCount)
-
-    // 显示正确答案并朗读
     setShowCorrectAnswer(true)
     if (soundEnabled) {
       setTimeout(() => speakEnglish(question.answer), 300)
     }
 
-    // 1.5秒后隐藏答案，重置输入框，让用户重试
-    setTimeout(() => {
-      setShowCorrectAnswer(false)
-      // 重置为 maskedWord 的状态
-      const reset = question.maskedWord.split('').map((char) => (char === '_' ? '' : char))
-      setLetterInputs(reset)
-      // 聚焦第一个空输入框
-      const firstEmpty = reset.findIndex((l) => l === '')
-      if (firstEmpty !== -1) {
-        const firstInput = document.querySelector(`[data-letter-index="${firstEmpty}"]`) as HTMLInputElement
-        firstInput?.focus()
-      }
-    }, 1500)
-
-    // 第3次答错后才标记为错误并进入下一题
-    if (newWrongCount >= 3) {
+    if (newWrongCount >= MAX_ATTEMPTS) {
       stageAnswer('wrong', `已重试3次，正确拼写：${question.answer}`)
+      return
+    }
+
+    resetSpellingSelectionSoon()
+  }
+
+  const handleReadAloudStart = async () => {
+    if (question.type !== 'readAloud') return
+    if (hasAnswered || isSubmitting || isListening) return
+
+    if (!speechRecognitionSupported) {
+      setRecognitionError('当前浏览器不支持语音识别，请使用 Chrome 或 Edge。')
+      return
+    }
+
+    setIsListening(true)
+    setRecognitionError('')
+    setRecognizedTranscript('')
+
+    try {
+      const transcript = await recognizeEnglishOnce()
+      setRecognizedTranscript(transcript)
+
+      if (scoreReadAloud(question.answer, transcript)) {
+        stageAnswer('correct', '朗读通过，马上进入下一题。')
+        return
+      }
+
+      const nextAttemptCount = readAloudAttemptCount + 1
+      setReadAloudAttemptCount(nextAttemptCount)
+      if (nextAttemptCount >= MAX_ATTEMPTS) {
+        stageAnswer('wrong', `已尝试3次，正确读音：${question.answer}`)
+        return
+      }
+
+      setRecognitionError(`我听到的是：${transcript || '未识别'}。请再读一次。`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '语音识别失败，请再试一次。'
+      const nextAttemptCount = readAloudAttemptCount + 1
+      setReadAloudAttemptCount(nextAttemptCount)
+      setRecognitionError(message)
+      if (nextAttemptCount >= MAX_ATTEMPTS) {
+        stageAnswer('wrong', `已尝试3次，正确读音：${question.answer}`)
+      }
+    } finally {
+      setIsListening(false)
     }
   }
+
+  const renderListenButtons = () => (
+    <div className="listen-actions">
+      <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
+        🔊 正常
+      </Button>
+      <Button className="button--listen" onClick={() => speakEnglish(word.text, 'slow')} type="button" variant="ghost">
+        🐢 慢速
+      </Button>
+    </div>
+  )
+
+  const selectedChunks = question.type === 'spelling'
+    ? selectedChunkIndices.map((chunkIndex) => question.chunkOptions[chunkIndex])
+    : []
 
   return (
     <div className="question-panel">
@@ -224,14 +300,10 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
       </div>
       <div className="question-panel__prompt-row">
         <h2 className="question-panel__prompt">{question.prompt}</h2>
-        {questionType === 'enToZh' && (
-          <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
-            🔊 听发音
-          </Button>
-        )}
+        {questionType === 'enToZh' && renderListenButtons()}
       </div>
 
-      {question.type === 'choice' ? (
+      {question.type === 'choice' && (
         <div className="question-panel__options">
           {question.options.map((option) => {
             const isSelected = selectedAnswer === option
@@ -249,47 +321,91 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
             )
           })}
         </div>
-      ) : (
-        <div className="spelling-box">
+      )}
+
+      {question.type === 'spelling' && (
+        <div className="chunk-builder">
           <div className="spelling-box__hint-row">
-            <p className="spelling-box__hint-text">根据中文意思，补全单词拼写</p>
-            <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
-              🔊 听发音
-            </Button>
+            <p className="spelling-box__hint-text">按顺序选择字母组合，拼出英文单词</p>
+            {renderListenButtons()}
           </div>
 
-          {/* 暂时显示正确答案 */}
           {showCorrectAnswer && !hasAnswered && (
             <p className="question-panel__feedback question-panel__feedback--wrong">
               正确答案：{question.answer}
             </p>
           )}
 
-          {/* 填字母输入框 */}
-          <div className="letter-inputs">
-            {letterInputs.map((letter, index) => {
-              const isHidden = question.maskedWord[index] === '_'
+          <div className="chunk-builder__answer" aria-label="已选择的字母组合">
+            {selectedChunks.length === 0 ? (
+              <span className="chunk-builder__placeholder">点击下方组合开始拼词</span>
+            ) : (
+              selectedChunks.map((chunk, index) => (
+                <span className="chunk-builder__selected" key={`${chunk}-${index}`}>{chunk}</span>
+              ))
+            )}
+          </div>
+
+          <div className="chunk-builder__options" aria-label="可选字母组合">
+            {question.chunkOptions.map((chunk, index) => {
+              const isSelected = selectedChunkIndices.includes(index)
               return (
-                <input
-                  key={index}
-                  aria-label={`第${index + 1}个字母`}
-                  className={`letter-input ${isHidden ? 'letter-input--hidden' : 'letter-input--shown'}`}
-                  data-letter-index={index}
-                  disabled={hasAnswered || isSubmitting || showCorrectAnswer || !isHidden}
-                  maxLength={1}
-                  onChange={(event) => handleLetterChange(index, event.target.value)}
-                  onKeyDown={(event) => handleLetterKeyDown(index, event)}
-                  value={letter}
-                />
+                <button
+                  className={`chunk-option ${isSelected ? 'chunk-option--selected' : ''}`}
+                  disabled={isSelected || hasAnswered || isSubmitting || showCorrectAnswer}
+                  key={`${chunk}-${index}`}
+                  onClick={() => handleSelectChunk(index)}
+                  type="button"
+                >
+                  {chunk}
+                </button>
               )
             })}
           </div>
 
-          <Button disabled={hasAnswered || isSubmitting || showCorrectAnswer} onClick={handleSpellingSubmit} type="button">提交</Button>
+          <div className="chunk-builder__actions">
+            <Button disabled={selectedChunkIndices.length === 0 || hasAnswered || isSubmitting || showCorrectAnswer} onClick={handleUndoChunk} type="button" variant="ghost">撤销</Button>
+            <Button disabled={selectedChunkIndices.length === 0 || hasAnswered || isSubmitting || showCorrectAnswer} onClick={handleClearChunks} type="button" variant="secondary">清空</Button>
+            <Button disabled={hasAnswered || isSubmitting || showCorrectAnswer} onClick={handleSpellingSubmit} type="button">提交</Button>
+          </div>
 
-          {spellingWrongCount > 0 && !hasAnswered && spellingWrongCount < 3 && (
+          {spellingWrongCount > 0 && !hasAnswered && spellingWrongCount < MAX_ATTEMPTS && (
             <p className="question-panel__feedback">
-              第 {spellingWrongCount} 次错误，还可以重试 {3 - spellingWrongCount} 次
+              第 {spellingWrongCount} 次错误，还可以重试 {MAX_ATTEMPTS - spellingWrongCount} 次
+            </p>
+          )}
+        </div>
+      )}
+
+      {question.type === 'readAloud' && (
+        <div className="read-aloud-box">
+          <div>
+            <p className="read-aloud-box__word">{question.answer}</p>
+            <p className="muted">请听标准发音，然后点击开始朗读。</p>
+          </div>
+          {renderListenButtons()}
+          {!speechRecognitionSupported && (
+            <p className="question-panel__feedback question-panel__feedback--error">
+              当前浏览器不支持语音识别，请使用 Chrome 或 Edge。你可以跳过本题。
+            </p>
+          )}
+          {recognizedTranscript && (
+            <p className="read-aloud-box__transcript">我听到的是：{recognizedTranscript}</p>
+          )}
+          {recognitionError && (
+            <p className="question-panel__feedback question-panel__feedback--wrong">{recognitionError}</p>
+          )}
+          <div className="read-aloud-box__actions">
+            <Button disabled={!speechRecognitionSupported || hasAnswered || isSubmitting || isListening} onClick={() => void handleReadAloudStart()} type="button">
+              {isListening ? '正在听……' : '🎙 开始朗读'}
+            </Button>
+            {!speechRecognitionSupported && (
+              <Button disabled={hasAnswered || isSubmitting} onClick={() => stageAnswer('skipped', '已跳过跟读题。')} type="button" variant="ghost">跳过本题</Button>
+            )}
+          </div>
+          {readAloudAttemptCount > 0 && !hasAnswered && readAloudAttemptCount < MAX_ATTEMPTS && (
+            <p className="question-panel__feedback">
+              第 {readAloudAttemptCount} 次未通过，还可以重试 {MAX_ATTEMPTS - readAloudAttemptCount} 次
             </p>
           )}
         </div>
@@ -309,8 +425,8 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
           </Button>
         ) : (
           <>
-            <Button disabled={isSubmitting} onClick={() => stageAnswer('fuzzy', '已标记为模糊，马上进入下一题。')} type="button" variant="secondary">模糊</Button>
-            <Button disabled={isSubmitting} onClick={() => stageAnswer('skipped', '已跳过，之后会重新安排。')} type="button" variant="ghost">跳过</Button>
+            <Button disabled={isSubmitting || isListening} onClick={() => stageAnswer('fuzzy', '已标记为模糊，马上进入下一题。')} type="button" variant="secondary">模糊</Button>
+            <Button disabled={isSubmitting || isListening} onClick={() => stageAnswer('skipped', '已跳过，之后会重新安排。')} type="button" variant="ghost">跳过</Button>
           </>
         )}
       </div>

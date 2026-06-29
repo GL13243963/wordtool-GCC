@@ -8,6 +8,7 @@ const SCORE_LIMITS = {
 const QUESTION_SCORE_DELTA: Record<QuestionType, { correct: number; wrong: number }> = {
   enToZh: { correct: 10, wrong: -10 },
   spelling: { correct: 20, wrong: -20 },
+  readAloud: { correct: 15, wrong: -15 },
 }
 
 const REVIEW_INTERVALS = [

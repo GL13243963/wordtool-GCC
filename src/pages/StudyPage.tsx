@@ -206,7 +206,7 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
       <div className="study-focus-header">
         <div>
           <p className="eyebrow">{isTestMode ? '测试模式' : '学习模式'}</p>
-          <h1>{currentQuestion.questionType === 'enToZh' ? '选择正确释义' : '补全单词拼写'}</h1>
+          <h1>{currentQuestion.questionType === 'enToZh' ? '选择正确释义' : currentQuestion.questionType === 'spelling' ? '拼出单词' : '朗读单词'}</h1>
           <p className="study-focus-header__unit">{currentWord.unitTitle}</p>
         </div>
         <div className="study-focus-header__actions">

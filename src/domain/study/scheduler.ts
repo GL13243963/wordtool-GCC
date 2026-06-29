@@ -4,6 +4,7 @@ import type { QuestionItem, WordProgress } from './types'
 
 const MAX_DAILY_CHOICE_QUESTIONS = 20
 const MAX_DAILY_SPELLING_QUESTIONS = 20
+const MAX_DAILY_READ_ALOUD_QUESTIONS = 5
 
 export type DailyTaskPlan = {
   newWords: Word[]
@@ -50,12 +51,14 @@ export const createDailyTaskPlan = ({
   const currentUnitWords = words.filter((word) => word.unitId === settings.currentUnitId)
   const orderedWords = orderWordsForPractice(currentUnitWords, progressByWordId, now)
   const choiceWords = settings.questionTypesEnabled.enToZh ? orderedWords.slice(0, MAX_DAILY_CHOICE_QUESTIONS) : []
+  const seenWords = orderedWords.filter((word) => (progressByWordId.get(word.id)?.seenCount ?? 0) >= 1)
   const spellingWords = settings.questionTypesEnabled.spelling
-    ? orderedWords
-      .filter((word) => (progressByWordId.get(word.id)?.seenCount ?? 0) >= 1)
-      .slice(0, MAX_DAILY_SPELLING_QUESTIONS)
+    ? seenWords.slice(0, MAX_DAILY_SPELLING_QUESTIONS)
     : []
-  const selectedWords = Array.from(new Map([...choiceWords, ...spellingWords].map((word) => [word.id, word])).values())
+  const readAloudWords = settings.questionTypesEnabled.readAloud
+    ? seenWords.slice(0, MAX_DAILY_READ_ALOUD_QUESTIONS)
+    : []
+  const selectedWords = Array.from(new Map([...choiceWords, ...spellingWords, ...readAloudWords].map((word) => [word.id, word])).values())
 
   const newWords = selectedWords.filter((word) => {
     const progress = progressByWordId.get(word.id)
@@ -79,5 +82,13 @@ export const createDailyTaskPlan = ({
     status: 'pending' as const,
   }))
 
-  return { newWords, reviewWords, questionQueue: [...choiceQuestions, ...spellingQuestions] }
+  const readAloudQuestions: QuestionItem[] = readAloudWords.map((word) => ({
+    id: `${now}-${word.id}-readAloud`,
+    wordId: word.id,
+    unitId: word.unitId,
+    questionType: 'readAloud',
+    status: 'pending' as const,
+  }))
+
+  return { newWords, reviewWords, questionQueue: [...choiceQuestions, ...spellingQuestions, ...readAloudQuestions] }
 }

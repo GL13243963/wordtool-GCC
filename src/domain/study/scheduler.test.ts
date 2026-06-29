@@ -5,7 +5,7 @@ import { createInitialWordProgress } from './mastery'
 import { createDailyTaskPlan } from './scheduler'
 
 describe('daily task scheduler', () => {
-  test('limits daily questions to 20 choices and 20 spelling questions', () => {
+  test('limits daily questions to 20 choices, 20 spelling questions, and 5 read-aloud questions', () => {
     const progressMap = new Map()
     const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
 
@@ -26,7 +26,8 @@ describe('daily task scheduler', () => {
 
     expect(plan.questionQueue.filter((item) => item.questionType === 'enToZh')).toHaveLength(Math.min(20, currentUnitWords.length))
     expect(plan.questionQueue.filter((item) => item.questionType === 'spelling')).toHaveLength(Math.min(20, currentUnitWords.length))
-    expect(plan.questionQueue.length).toBeLessThanOrEqual(40)
+    expect(plan.questionQueue.filter((item) => item.questionType === 'readAloud')).toHaveLength(Math.min(5, currentUnitWords.length))
+    expect(plan.questionQueue.length).toBeLessThanOrEqual(45)
   })
 
   test('prioritizes words with wrong answers first', () => {
@@ -94,7 +95,8 @@ describe('daily task scheduler', () => {
     })
 
     expect(plan.questionQueue.length).toBeGreaterThan(0)
-    expect(plan.questionQueue.every((item) => item.questionType === 'spelling')).toBe(true)
+    expect(plan.questionQueue.some((item) => item.questionType === 'enToZh')).toBe(false)
+    expect(plan.questionQueue.some((item) => item.questionType === 'spelling')).toBe(true)
   })
 
   test('generates spelling questions for seen words', () => {
