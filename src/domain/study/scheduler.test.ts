@@ -89,6 +89,7 @@ describe('daily task scheduler', () => {
         questionTypesEnabled: {
           enToZh: false,
           spelling: true,
+          readAloud: false,
         },
       },
       now: 1_000,
