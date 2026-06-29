@@ -81,12 +81,19 @@ export const scoreReadAloud = (expected: string, transcript: string): boolean =>
 }
 
 const mapRecognitionError = (error?: string): SpeechRecognitionFailure => {
-  if (error === 'not-allowed' || error === 'service-not-allowed') {
-    return { code: 'permission-denied', message: '无法使用麦克风，请允许麦克风权限后重试。' }
+  if (error === 'not-allowed' || error === 'service-not-allowed' || error === 'permission-denied') {
+    return {
+      code: 'permission-denied',
+      message: '🔒 请允许麦克风权限：\n• 点击浏览器地址栏左侧的 🔒 或 ⓘ 图标\n• 找到「麦克风」设置并选择「允许」\n• 刷新页面后重试'
+    }
   }
 
   if (error === 'no-speech') {
-    return { code: 'no-speech', message: '没有听到朗读，请再试一次。' }
+    return { code: 'no-speech', message: '🎤 没有听到声音，请大声朗读单词后再试。' }
+  }
+
+  if (error === 'audio-capture') {
+    return { code: 'permission-denied', message: '❌ 无法访问麦克风，请检查设备连接和浏览器权限设置。' }
   }
 
   return { code: 'unknown', message: '语音识别失败，请再试一次。' }
@@ -115,7 +122,7 @@ export const recognizeEnglishOnce = (): Promise<string> => {
     recognition.onresult = (event) => {
       const result = event.results[0]
       const transcript = result?.[0]?.transcript ?? result?.item(0)?.transcript ?? ''
-      settle(() => resolve(transcript))
+      settle(() => resolve(transcript.trim()))
     }
 
     recognition.onerror = (event) => {
@@ -124,7 +131,9 @@ export const recognizeEnglishOnce = (): Promise<string> => {
     }
 
     recognition.onend = () => {
-      settle(() => reject(new SpeechRecognitionError({ code: 'no-speech', message: '没有听到朗读，请再试一次。' })))
+      // 只有在没有收到结果时才触发 no-speech 错误
+      // 如果 onresult 已经触发过，settled 会是 true，这里不会执行
+      settle(() => reject(new SpeechRecognitionError({ code: 'no-speech', message: '🎤 没有听到声音，请大声朗读后再试。' })))
     }
 
     try {

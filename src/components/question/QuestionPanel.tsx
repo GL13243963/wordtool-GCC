@@ -92,7 +92,7 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
   }, [isFirstEncounter, soundEnabled, word.text, questionType])
 
   useEffect(() => {
-    if (soundEnabled && questionType === 'readAloud') {
+    if (soundEnabled && (questionType === 'readAloud' || questionType === 'spelling')) {
       const timer = window.setTimeout(() => speakEnglish(word.text), 300)
       return () => window.clearTimeout(timer)
     }
@@ -267,10 +267,7 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
   const renderListenButtons = () => (
     <div className="listen-actions">
       <Button className="button--listen" onClick={() => speakEnglish(word.text)} type="button" variant="ghost">
-        🔊 正常
-      </Button>
-      <Button className="button--listen" onClick={() => speakEnglish(word.text, 'slow')} type="button" variant="ghost">
-        🐢 慢速
+        🔊 听发音
       </Button>
     </div>
   )

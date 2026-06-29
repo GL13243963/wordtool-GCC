@@ -11,7 +11,7 @@ const VOICE_NAME_PRIORITY = [
 
 let cachedVoice: SpeechSynthesisVoice | null = null
 
-const getSpeechRateValue = (rate: SpeechRate): number => (rate === 'slow' ? 0.65 : 0.9)
+const getSpeechRateValue = (rate: SpeechRate): number => (rate === 'slow' ? 0.5 : 0.9)
 
 const getVoiceScore = (voice: SpeechSynthesisVoice): number => {
   const priorityIndex = VOICE_NAME_PRIORITY.findIndex((name) => voice.name.includes(name))
