@@ -77,6 +77,24 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
       setSettings({ ...settings, [key]: Number(event.target.value) })
     }
 
+  const updateQuestionType = (key: keyof AppSettings['questionTypesEnabled']) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      if (!settings) return
+
+      const nextQuestionTypes = {
+        ...settings.questionTypesEnabled,
+        [key]: event.target.checked,
+      }
+      const hasEnabledType = Object.values(nextQuestionTypes).some(Boolean)
+      if (!hasEnabledType) {
+        setMessage('至少需要保留一种题型。')
+        return
+      }
+
+      setMessage('')
+      setSettings({ ...settings, questionTypesEnabled: nextQuestionTypes })
+    }
+
   const handleBookChange = (event: ChangeEvent<HTMLSelectElement>) => {
     if (!settings) return
 
@@ -174,53 +192,121 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
       )}
 
       {settings && (
-        <Card className="settings-form">
-          <label>
-            当前书册
-            <select onChange={handleBookChange} value={settings.currentBookId}>
-              {availableBooks.map((unit) => (
-                <option key={unit.bookId} value={unit.bookId}>{unit.grade} {unit.semester}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            当前 Unit
-            <select onChange={handleUnitChange} value={settings.currentUnitId}>
-              {unitsForCurrentBook.map((unit) => (
-                <option key={unit.id} value={unit.id}>Unit {unit.order} · {unit.title}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            每日新词数
-            <input min="1" max="100" onChange={updateNumber('dailyNewWordLimit')} type="number" value={settings.dailyNewWordLimit} />
-          </label>
-          <label>
-            每日复习数
-            <input min="0" max="300" onChange={updateNumber('dailyReviewLimit')} type="number" value={settings.dailyReviewLimit} />
-          </label>
-          <label>
-            每日学习时间（分钟）
-            <input min="5" max="180" onChange={updateNumber('dailyTimeLimitMinutes')} type="number" value={settings.dailyTimeLimitMinutes} />
-          </label>
-          <label className="checkbox-row">
-            <input
-              checked={settings.soundEnabled}
-              onChange={(event) => setSettings({ ...settings, soundEnabled: event.target.checked })}
-              type="checkbox"
-            />
-            答题反馈音效
-          </label>
-          <label className="checkbox-row">
-            <input
-              checked={settings.autoAdvanceUnit}
-              onChange={(event) => setSettings({ ...settings, autoAdvanceUnit: event.target.checked })}
-              type="checkbox"
-            />
-            通关后自动进入下一 Unit（后续完善通关测后生效）
-          </label>
-          <Button onClick={handleSave} type="button">保存设置</Button>
-        </Card>
+        <div className="settings-dashboard">
+          <Card className="settings-panel">
+            <div>
+              <p className="eyebrow">学习范围</p>
+              <h2>书册与单元</h2>
+            </div>
+            <div className="settings-form">
+              <label>
+                当前书册
+                <select onChange={handleBookChange} value={settings.currentBookId}>
+                  {availableBooks.map((unit) => (
+                    <option key={unit.bookId} value={unit.bookId}>{unit.grade} {unit.semester}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                当前 Unit
+                <select onChange={handleUnitChange} value={settings.currentUnitId}>
+                  {unitsForCurrentBook.map((unit) => (
+                    <option key={unit.id} value={unit.id}>Unit {unit.order} · {unit.title}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </Card>
+
+          <Card className="settings-panel">
+            <div>
+              <p className="eyebrow">每日任务</p>
+              <h2>学习量</h2>
+            </div>
+            <div className="settings-number-grid">
+              <label>
+                每日新词数
+                <input min="1" max="100" onChange={updateNumber('dailyNewWordLimit')} type="number" value={settings.dailyNewWordLimit} />
+              </label>
+              <label>
+                每日复习数
+                <input min="0" max="300" onChange={updateNumber('dailyReviewLimit')} type="number" value={settings.dailyReviewLimit} />
+              </label>
+              <label>
+                每日学习时间
+                <span className="settings-input-with-unit">
+                  <input min="5" max="180" onChange={updateNumber('dailyTimeLimitMinutes')} type="number" value={settings.dailyTimeLimitMinutes} />
+                  <span>分钟</span>
+                </span>
+              </label>
+            </div>
+          </Card>
+
+          <Card className="settings-panel settings-panel--wide">
+            <div>
+              <p className="eyebrow">题型与反馈</p>
+              <h2>练习方式</h2>
+            </div>
+            <div className="settings-toggle-list">
+              <label className="settings-toggle-row">
+                <input
+                  checked={settings.questionTypesEnabled.enToZh}
+                  onChange={updateQuestionType('enToZh')}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>英文选中文</strong>
+                  <small>适合新词初见，先建立词义印象。</small>
+                </span>
+              </label>
+              <label className="settings-toggle-row">
+                <input
+                  checked={settings.questionTypesEnabled.spelling}
+                  onChange={updateQuestionType('spelling')}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>分块拼写</strong>
+                  <small>用字母组合拼词，帮助记住单词结构。</small>
+                </span>
+              </label>
+              <label className="settings-toggle-row">
+                <input
+                  checked={settings.questionTypesEnabled.readAloud}
+                  onChange={updateQuestionType('readAloud')}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>朗读跟读</strong>
+                  <small>需要浏览器麦克风权限，适合练发音。</small>
+                </span>
+              </label>
+              <label className="settings-toggle-row">
+                <input
+                  checked={settings.soundEnabled}
+                  onChange={(event) => setSettings({ ...settings, soundEnabled: event.target.checked })}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>答题反馈音效</strong>
+                  <small>答对、答错和完成任务时播放轻量提示音。</small>
+                </span>
+              </label>
+              <label className="settings-toggle-row">
+                <input
+                  checked={settings.autoAdvanceUnit}
+                  onChange={(event) => setSettings({ ...settings, autoAdvanceUnit: event.target.checked })}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>通关后自动进入下一 Unit</strong>
+                  <small>预留开关，后续完善通关测后生效。</small>
+                </span>
+              </label>
+            </div>
+            <Button className="settings-save-button" onClick={handleSave} type="button">保存设置</Button>
+          </Card>
+        </div>
       )}
 
       <BackupPanel message={message} onExport={handleExport} onRestore={handleRestore} />

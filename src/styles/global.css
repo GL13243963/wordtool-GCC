@@ -1,18 +1,19 @@
 :root {
   color-scheme: light;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --color-bg: #f6f1e8;
-  --color-surface: rgba(255, 255, 255, 0.86);
-  --color-surface-strong: #fffaf0;
+  --color-bg: #f7f9fc;
+  --color-surface: #ffffff;
+  --color-surface-strong: #ffffff;
   --color-text: #172026;
   --color-muted: #667085;
   --color-primary: #2563eb;
   --color-primary-strong: #1d4ed8;
-  --color-secondary: #0f766e;
-  --color-danger: #dc2626;
-  --shadow-card: 0 24px 60px rgba(15, 23, 42, 0.1);
-  --radius-xl: 28px;
-  --radius-lg: 18px;
+  --color-secondary: #0f9f7a;
+  --color-danger: #ef4444;
+  --color-border: #e5eaf2;
+  --shadow-card: 0 12px 28px rgba(15, 23, 42, 0.06);
+  --radius-xl: 18px;
+  --radius-lg: 12px;
 }
 
 * {
@@ -24,10 +25,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 30rem),
-    radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.16), transparent 28rem),
-    var(--color-bg);
+  background: linear-gradient(180deg, #ffffff 0%, var(--color-bg) 240px);
   color: var(--color-text);
 }
 
@@ -44,11 +42,11 @@ input {
 
 /* ========== 极简风首页样式 ========== */
 .home-stack {
-  max-width: 720px;
+  max-width: 980px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .home-centered {
@@ -61,24 +59,31 @@ input {
 }
 
 .home-header {
-  text-align: center;
-  padding: 20px 0;
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0 2px;
 }
 
 .home-title {
-  font-size: 2.2rem;
+  color: var(--color-text);
+  font-size: clamp(2rem, 5vw, 3.2rem);
   font-weight: 900;
-  margin: 0 0 8px;
-  background: linear-gradient(135deg, var(--color-primary), #8b5cf6, var(--color-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  line-height: 1.08;
+  margin: 0;
 }
 
-.home-subtitle {
-  color: var(--color-muted);
-  font-weight: 600;
-  margin: 0;
+.home-kicker {
+  color: var(--color-primary);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.home-settings-button {
+  min-width: 84px;
 }
 
 .loading-placeholder,
@@ -86,19 +91,105 @@ input {
   text-align: center;
   padding: 40px;
   border-radius: var(--radius-xl);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.today-card {
+  align-items: stretch;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.1);
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  overflow: hidden;
+  padding: clamp(22px, 4vw, 34px);
+}
+
+.today-card__content {
+  align-content: center;
+  display: grid;
+  gap: 18px;
+  justify-items: start;
+}
+
+.today-card__content h2 {
+  font-size: clamp(1.6rem, 4vw, 2.5rem);
+  line-height: 1.12;
+  margin: 0;
+}
+
+.today-card__desc {
+  color: var(--color-muted);
+  font-weight: 700;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.today-metrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(86px, 1fr));
+  width: min(100%, 420px);
+}
+
+.today-metrics div {
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.today-metrics strong {
+  display: block;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.today-metrics span {
+  color: var(--color-muted);
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.today-card__progress {
+  align-content: center;
+  background: linear-gradient(180deg, #eff6ff, #ffffff);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: var(--radius-xl);
+  display: grid;
+  justify-items: center;
+  padding: 20px;
+  text-align: center;
+}
+
+.today-card__progress p {
+  color: var(--color-muted);
+  font-weight: 900;
+  margin: 14px 0 0;
+}
+
+.home-overview {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 320px;
 }
 
 /* 进度总览卡片 */
 .progress-overview-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8));
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.1);
+  align-content: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
   border-radius: var(--radius-xl);
-  padding: 28px;
-  backdrop-filter: blur(14px);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
 }
 
 .big-progress-row {
@@ -116,8 +207,7 @@ input {
   background: conic-gradient(
     from 0deg,
     #2563eb 0%,
-    #8b5cf6 calc(var(--mastery-angle, 0deg) * 0.4),
-    #0f766e var(--mastery-angle, 0deg),
+    #0f9f7a var(--mastery-angle, 0deg),
     rgba(37, 99, 235, 0.1) var(--mastery-angle, 0deg)
   );
   display: flex;
@@ -151,16 +241,13 @@ input {
 
 .progress-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.stat-mini-item {
-  text-align: center;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .stat-mini-num {
-  font-size: 1.8rem;
+  color: var(--color-text);
+  font-size: 1.55rem;
   font-weight: 900;
   display: block;
 }
@@ -199,9 +286,8 @@ input {
 /* 极简单元进度点 */
 .unit-dots-map {
   display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-top: 16px;
+  gap: 7px;
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
@@ -250,30 +336,29 @@ input {
 .modes-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .mode-button {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.75));
-  border: 2px solid rgba(37, 99, 235, 0.15);
-  border-radius: 20px;
-  padding: 18px 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   cursor: pointer;
   transition: all 0.25s ease;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
   text-align: left;
-  backdrop-filter: blur(14px);
 }
 
 .mode-button:hover,
 .mode-button:focus-visible {
-  border-color: rgba(37, 99, 235, 0.4);
-  transform: translateX(4px);
-  box-shadow: 0 16px 40px rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.32);
+  box-shadow: var(--shadow-card);
   outline: none;
+  transform: translateY(-1px);
 }
 
 .mode-button--primary {
@@ -288,14 +373,14 @@ input {
 }
 
 .mode-button .mode-icon {
-  font-size: 1.8rem;
-  width: 48px;
-  height: 48px;
+  font-size: 1.3rem;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37, 99, 235, 0.1);
-  border-radius: 14px;
+  background: #eff6ff;
+  border-radius: 12px;
   flex-shrink: 0;
 }
 
@@ -309,7 +394,7 @@ input {
 
 .mode-button .mode-title {
   font-weight: 900;
-  font-size: 1.05rem;
+  font-size: 1rem;
   margin: 0 0 3px;
 }
 
@@ -341,12 +426,35 @@ input {
     width: 100%;
   }
 
+  .home-header {
+    align-items: flex-start;
+    gap: 14px;
+  }
+
   .home-title {
     font-size: 1.8rem;
   }
 
+  .today-card,
+  .home-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .today-card {
+    padding: 18px;
+  }
+
+  .today-card__progress {
+    order: -1;
+  }
+
+  .today-metrics,
+  .progress-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .progress-overview-card {
-    padding: 20px;
+    padding: 18px;
   }
 
   .big-progress-row {
@@ -354,12 +462,8 @@ input {
     gap: 20px;
   }
 
-  .progress-stats-grid {
-    width: 100%;
-  }
-
   .mode-button {
-    padding: 16px 18px;
+    padding: 14px;
   }
 
   .mode-button .mode-icon {
@@ -965,6 +1069,109 @@ input {
   gap: 14px;
 }
 
+.settings-dashboard {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-panel {
+  align-content: start;
+  display: grid;
+  gap: 18px;
+}
+
+.settings-panel h2 {
+  margin: 0;
+}
+
+.settings-panel--wide {
+  grid-column: 1 / -1;
+}
+
+.settings-number-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-form label,
+.settings-number-grid label {
+  color: var(--color-muted);
+  display: grid;
+  font-weight: 800;
+  gap: 8px;
+}
+
+.settings-input-with-unit {
+  align-items: center;
+  background: white;
+  border: 1px solid #d0d5dd;
+  border-radius: var(--radius-lg);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  min-height: 52px;
+  overflow: hidden;
+}
+
+.settings-input-with-unit input {
+  border: 0;
+  min-height: 50px;
+}
+
+.settings-input-with-unit span {
+  color: var(--color-muted);
+  font-weight: 900;
+  padding: 0 14px 0 4px;
+}
+
+.settings-toggle-list {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-toggle-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto 1fr;
+  min-height: 74px;
+  padding: 14px 16px;
+}
+
+.settings-toggle-row:has(input:checked) {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.34);
+}
+
+.settings-toggle-row input {
+  accent-color: var(--color-primary);
+  height: 20px;
+  width: 20px;
+}
+
+.settings-toggle-row strong {
+  color: var(--color-text);
+  display: block;
+  font-size: 1rem;
+}
+
+.settings-toggle-row small {
+  color: var(--color-muted);
+  display: block;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.settings-save-button {
+  justify-self: start;
+}
+
 .spelling-box__hint-row {
   align-items: center;
   display: flex;
@@ -989,6 +1196,7 @@ input {
 
 .spelling-box__input,
 .settings-form input[type='number'],
+.settings-number-grid input[type='number'],
 .settings-form select {
   background: white;
   border: 1px solid #d0d5dd;
@@ -1308,8 +1516,14 @@ input {
   .page-grid,
   .page-grid--dashboard,
   .question-panel__options,
+  .settings-dashboard,
+  .settings-number-grid,
   .study-header-card,
   .unit-path {
     grid-template-columns: 1fr;
+  }
+
+  .settings-save-button {
+    width: 100%;
   }
 }

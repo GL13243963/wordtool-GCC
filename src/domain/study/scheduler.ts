@@ -2,8 +2,6 @@ import type { AppSettings } from '../settings/types'
 import type { Word } from '../vocabulary/types'
 import type { QuestionItem, WordProgress } from './types'
 
-const MAX_DAILY_CHOICE_QUESTIONS = 20
-const MAX_DAILY_SPELLING_QUESTIONS = 20
 const MAX_DAILY_READ_ALOUD_QUESTIONS = 5
 
 export type DailyTaskPlan = {
@@ -50,15 +48,21 @@ export const createDailyTaskPlan = ({
 }): DailyTaskPlan => {
   const currentUnitWords = words.filter((word) => word.unitId === settings.currentUnitId)
   const orderedWords = orderWordsForPractice(currentUnitWords, progressByWordId, now)
-  const choiceWords = settings.questionTypesEnabled.enToZh ? orderedWords.slice(0, MAX_DAILY_CHOICE_QUESTIONS) : []
-  const seenWords = orderedWords.filter((word) => (progressByWordId.get(word.id)?.seenCount ?? 0) >= 1)
-  const spellingWords = settings.questionTypesEnabled.spelling
-    ? seenWords.slice(0, MAX_DAILY_SPELLING_QUESTIONS)
-    : []
+  const newWordCandidates = orderedWords.filter((word) => {
+    const progress = progressByWordId.get(word.id)
+    return !progress || progress.status === 'new'
+  })
+  const reviewWordCandidates = orderedWords.filter((word) => !newWordCandidates.includes(word))
+  const selectedWords = [
+    ...newWordCandidates.slice(0, settings.dailyNewWordLimit),
+    ...reviewWordCandidates.slice(0, settings.dailyReviewLimit),
+  ]
+  const choiceWords = settings.questionTypesEnabled.enToZh ? selectedWords : []
+  const seenWords = selectedWords.filter((word) => (progressByWordId.get(word.id)?.seenCount ?? 0) >= 1)
+  const spellingWords = settings.questionTypesEnabled.spelling ? seenWords : []
   const readAloudWords = settings.questionTypesEnabled.readAloud
     ? seenWords.slice(0, MAX_DAILY_READ_ALOUD_QUESTIONS)
     : []
-  const selectedWords = Array.from(new Map([...choiceWords, ...spellingWords, ...readAloudWords].map((word) => [word.id, word])).values())
 
   const newWords = selectedWords.filter((word) => {
     const progress = progressByWordId.get(word.id)

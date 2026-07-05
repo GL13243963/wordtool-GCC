@@ -100,6 +100,66 @@ describe('daily task scheduler', () => {
     expect(plan.questionQueue.some((item) => item.questionType === 'spelling')).toBe(true)
   })
 
+  test('respects daily new word and review limits from settings', () => {
+    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
+    const reviewWords = currentUnitWords.slice(6, 14)
+    const progressMap = new Map()
+
+    for (const word of reviewWords) {
+      progressMap.set(word.id, {
+        ...createInitialWordProgress({ studentId: 'student', wordId: word.id, unitId: word.unitId, now: 0 }),
+        seenCount: 3,
+        status: 'learning',
+      })
+    }
+
+    const plan = createDailyTaskPlan({
+      words: currentUnitWords,
+      progressByWordId: progressMap,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dailyNewWordLimit: 2,
+        dailyReviewLimit: 3,
+        questionTypesEnabled: {
+          enToZh: true,
+          spelling: false,
+          readAloud: false,
+        },
+      },
+      now: 1_000,
+    })
+
+    expect(plan.newWords).toHaveLength(2)
+    expect(plan.reviewWords).toHaveLength(3)
+    expect(plan.questionQueue).toHaveLength(5)
+  })
+
+  test('does not schedule review words when daily review limit is zero', () => {
+    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
+    const progressMap = new Map()
+
+    for (const word of currentUnitWords) {
+      progressMap.set(word.id, {
+        ...createInitialWordProgress({ studentId: 'student', wordId: word.id, unitId: word.unitId, now: 0 }),
+        seenCount: 3,
+        status: 'learning',
+      })
+    }
+
+    const plan = createDailyTaskPlan({
+      words: currentUnitWords,
+      progressByWordId: progressMap,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dailyReviewLimit: 0,
+      },
+      now: 1_000,
+    })
+
+    expect(plan.reviewWords).toHaveLength(0)
+    expect(plan.questionQueue).toHaveLength(0)
+  })
+
   test('generates spelling questions for seen words', () => {
     // 对已见过的单词生成拼写题
     const progressMap = new Map()
