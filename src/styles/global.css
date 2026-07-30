@@ -86,6 +86,114 @@ input {
   min-width: 84px;
 }
 
+.weekly-greeting {
+  background: linear-gradient(135deg, #ffffff, #f3f7ff);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 16px 36px rgba(37, 99, 235, 0.08);
+  display: grid;
+  gap: 20px;
+  padding: clamp(20px, 4vw, 32px);
+}
+
+.weekly-greeting__top {
+  align-items: flex-start;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.weekly-greeting h1 {
+  font-size: clamp(1.45rem, 4vw, 2.35rem);
+  line-height: 1.25;
+  margin: 0 0 10px;
+}
+
+.weekly-greeting p:last-child {
+  color: var(--color-muted);
+  font-weight: 700;
+  margin: 0;
+}
+
+.weekly-greeting p strong {
+  color: var(--color-primary);
+  font-size: 1.2em;
+}
+
+.week-calendar {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.week-calendar__day {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  min-height: 86px;
+  padding: 10px 4px;
+}
+
+.week-calendar__day span,
+.week-calendar__day small {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.week-calendar__day strong {
+  font-size: 1.2rem;
+}
+
+.week-calendar__day--done {
+  background: #ecfdf5;
+  border-color: rgba(22, 163, 74, 0.25);
+}
+
+.week-calendar__day--done small {
+  color: #15803d;
+}
+
+.week-calendar__day--today {
+  background: linear-gradient(160deg, #3159e8, #6548d8);
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgba(49, 89, 232, 0.24);
+  color: #fff;
+  transform: translateY(-3px);
+}
+
+.week-calendar__day--today span,
+.week-calendar__day--today small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.home-start-button {
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.26);
+  font-size: 1.2rem;
+  min-height: 68px;
+  width: 100%;
+}
+
+.home-learning-summary {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.home-learning-summary > div {
+  background: linear-gradient(135deg, #f8fafc, #eef4ff);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 5px;
+  padding: 18px;
+}
+
 .loading-placeholder,
 .error-card {
   text-align: center;
@@ -241,7 +349,7 @@ input {
 
 .progress-stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -431,6 +539,24 @@ input {
     gap: 14px;
   }
 
+  .weekly-greeting__top {
+    gap: 10px;
+  }
+
+  .week-calendar {
+    gap: 5px;
+  }
+
+  .week-calendar__day {
+    border-radius: 12px;
+    min-height: 72px;
+    padding: 8px 2px;
+  }
+
+  .week-calendar__day span {
+    font-size: 0.68rem;
+  }
+
   .home-title {
     font-size: 1.8rem;
   }
@@ -442,10 +568,6 @@ input {
 
   .today-card {
     padding: 18px;
-  }
-
-  .today-card__progress {
-    order: -1;
   }
 
   .today-metrics,
@@ -1472,6 +1594,25 @@ input {
   color: #166534;
 }
 
+.wrong-words-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.danger-zone {
+  align-items: center;
+  border-color: rgba(220, 38, 38, 0.24);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+}
+
+.danger-zone h2,
+.danger-zone p {
+  margin-bottom: 6px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .button,
   .file-button,
@@ -1533,9 +1674,15 @@ input {
   }
 
   .today-task-footer,
+  .danger-zone,
   .dual-entry-buttons,
   .study-focus-header__actions,
   .study-footer-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .wrong-words-actions {
     display: grid;
     width: 100%;
   }

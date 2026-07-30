@@ -39,7 +39,7 @@ export const exportBackup = async (): Promise<BackupFile> => {
 
   return BackupSchema.parse({
     backupVersion: 1,
-    appVersion: '0.1.0',
+    appVersion: '0.5.0',
     exportedAt: new Date().toISOString(),
     data: {
       settings,

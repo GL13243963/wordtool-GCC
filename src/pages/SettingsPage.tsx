@@ -5,7 +5,7 @@ import type { AppView } from '../App'
 import type { AppSettings } from '../domain/settings/types'
 import type { Unit } from '../domain/vocabulary/types'
 import { exportBackup, restoreBackup } from '../storage/backupService'
-import { getAllUnits } from '../storage/progressRepository'
+import { clearStudyRecords, getAllUnits } from '../storage/progressRepository'
 import { getSettings, saveSettings } from '../storage/settingsRepository'
 
 const MAX_BACKUP_FILE_SIZE_BYTES = 5 * 1024 * 1024
@@ -172,6 +172,20 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
     }
   }
 
+  const handleClearStudyRecords = async () => {
+    const firstConfirmation = window.confirm('这会删除当前学生的单词掌握度、错题、学习曲线和未完成任务，设置与内置词库会保留。确定继续吗？')
+    if (!firstConfirmation) return
+    const finalConfirmation = window.confirm('删除后只能通过之前导出的备份恢复。确认清空测试阶段的全部学习记录吗？')
+    if (!finalConfirmation) return
+
+    try {
+      await clearStudyRecords(settings?.studentId)
+      setMessage('测试阶段的学习记录已清空。')
+    } catch {
+      setMessage('学习记录清空失败，请稍后重试。')
+    }
+  }
+
   if (isLoading) return <Card><p>正在加载设置……</p></Card>
 
   return (
@@ -310,6 +324,15 @@ export const SettingsPage = ({ onNavigate }: SettingsPageProps) => {
       )}
 
       <BackupPanel message={message} onExport={handleExport} onRestore={handleRestore} />
+
+      <Card className="danger-zone">
+        <div>
+          <p className="eyebrow">数据管理</p>
+          <h2>清空测试阶段记录</h2>
+          <p className="muted">删除单词掌握度、错题、学习历史和测试结果，保留学习设置与内置词库。</p>
+        </div>
+        <Button onClick={() => void handleClearStudyRecords()} type="button" variant="secondary">清空学习记录</Button>
+      </Card>
     </div>
   )
 }

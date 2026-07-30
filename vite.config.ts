@@ -4,4 +4,9 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   base: '/wordtool-GCC/',
   plugins: [react()],
+  resolve: {
+    alias: {
+      buffer: 'buffer/',
+    },
+  },
 })

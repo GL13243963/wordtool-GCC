@@ -6,7 +6,7 @@ import { getUnitStats } from '../domain/study/progressStats'
 import { createDailyTaskPlan } from '../domain/study/scheduler'
 import type { StudyMode, WordProgress } from '../domain/study/types'
 import type { Unit, Word } from '../domain/vocabulary/types'
-import { getAllUnits, getAllWords, getProgressMap } from '../storage/progressRepository'
+import { getAllUnits, getAllWords, getAnswerRecordsForStudent, getProgressMap } from '../storage/progressRepository'
 import { getSettings } from '../storage/settingsRepository'
 
 type HomePageProps = {
@@ -66,6 +66,7 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
   const [words, setWords] = useState<Word[]>([])
   const [units, setUnits] = useState<Unit[]>([])
   const [progressMap, setProgressMap] = useState<Map<string, WordProgress>>(new Map())
+  const [studyDateKeys, setStudyDateKeys] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -74,11 +75,12 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
 
     const load = async () => {
       try {
-        const [nextSettings, nextWords, nextUnits, nextProgressMap] = await Promise.all([
+        const [nextSettings, nextWords, nextUnits, nextProgressMap, answerRecords] = await Promise.all([
           getSettings(),
           getAllWords(),
           getAllUnits(),
           getProgressMap(),
+          getAnswerRecordsForStudent(),
         ])
         if (cancelled) return
 
@@ -86,6 +88,7 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
         setWords(nextWords)
         setUnits(nextUnits)
         setProgressMap(nextProgressMap)
+        setStudyDateKeys(new Set(answerRecords.map((record) => new Date(record.answeredAt).toLocaleDateString('sv-SE'))))
       } catch {
         if (!cancelled) setError('学习数据加载失败，请刷新页面或从备份恢复。')
       } finally {
@@ -129,6 +132,31 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
       .filter((item) => item.firstSeenAt)
       .map((item) => new Date(item.firstSeenAt!).toDateString()),
   ).size
+  const today = new Date()
+  const todayKey = today.toLocaleDateString('sv-SE')
+  const weekStart = new Date(today)
+  const dayOffset = (today.getDay() + 6) % 7
+  weekStart.setDate(today.getDate() - dayOffset)
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart)
+    date.setDate(weekStart.getDate() + index)
+    const key = date.toLocaleDateString('sv-SE')
+    return {
+      key,
+      weekday: ['一', '二', '三', '四', '五', '六', '日'][index],
+      date: date.getDate(),
+      isToday: key === todayKey,
+      hasStudied: studyDateKeys.has(key),
+    }
+  })
+  let streakDays = 0
+  const streakCursor = new Date(today)
+  if (!studyDateKeys.has(todayKey)) streakCursor.setDate(streakCursor.getDate() - 1)
+  while (studyDateKeys.has(streakCursor.toLocaleDateString('sv-SE'))) {
+    streakDays += 1
+    streakCursor.setDate(streakCursor.getDate() - 1)
+  }
+  const dateGreeting = `${today.getMonth() + 1}月${today.getDate()}日星期${['日', '一', '二', '三', '四', '五', '六'][today.getDay()]}`
 
   if (loading) {
     return (
@@ -156,15 +184,27 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
 
   return (
     <div className="home-stack">
-      <header className="home-header">
-        <div>
-          <p className="home-kicker">Oxford English</p>
-          <h1 className="home-title">牛津单词闯关</h1>
+      <section className="weekly-greeting">
+        <div className="weekly-greeting__top">
+          <div>
+            <p className="home-kicker">本周学习日历</p>
+            <h1>郭城成，今天是{dateGreeting}</h1>
+            <p>你已经开始坚持打卡 <strong>{streakDays}</strong> 天，今天让我们开始吧！</p>
+          </div>
+          <Button className="home-settings-button" onClick={() => onNavigate('settings')} type="button" variant="ghost">
+            设置
+          </Button>
         </div>
-        <Button className="home-settings-button" onClick={() => onNavigate('settings')} type="button" variant="ghost">
-          设置
-        </Button>
-      </header>
+        <div className="week-calendar">
+          {weekDays.map((day) => (
+            <div className={`week-calendar__day ${day.isToday ? 'week-calendar__day--today' : ''} ${day.hasStudied ? 'week-calendar__day--done' : ''}`} key={day.key}>
+              <span>周{day.weekday}</span>
+              <strong>{day.date}</strong>
+              <small>{day.hasStudied ? '✓' : '·'}</small>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="today-card">
         <div className="today-card__content">
@@ -187,9 +227,6 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
               <span>题目</span>
             </div>
           </div>
-          <Button onClick={() => onNavigateToStudy('study')} size="large" type="button">
-            开始今日学习
-          </Button>
         </div>
         <div className="today-card__progress">
           <div
@@ -205,17 +242,23 @@ export const HomePage = ({ onNavigate, onNavigateToStudy }: HomePageProps) => {
         </div>
       </section>
 
+      <Button className="home-start-button" onClick={() => onNavigateToStudy('study')} size="large" type="button">
+        开始今日学习
+      </Button>
+
       <section className="home-overview">
         <div className="progress-overview-card">
-          <div className="progress-stats-grid">
+          <div className="home-learning-summary">
             <div>
               <span className="stat-mini-num">{learnedTotal}</span>
               <span className="stat-mini-label">已学单词</span>
             </div>
             <div>
               <span className="stat-mini-num">{weakWords}</span>
-              <span className="stat-mini-label">待巩固</span>
+              <span className="stat-mini-label">待巩固内容</span>
             </div>
+          </div>
+          <div className="progress-stats-grid">
             <div>
               <span className="stat-mini-num">{studyDays}</span>
               <span className="stat-mini-label">学习天数</span>

@@ -3,8 +3,27 @@ import { DEFAULT_SETTINGS } from '../domain/settings/types'
 import { db } from './db'
 
 const SEED_DATA_VERSION = '2026-06-08-grade-7a-upgrade'
+const TEST_DATA_RESET_VERSION = '2026-07-30-production-baseline'
 
 export const ensureSeedData = async () => {
+  const resetVersion = await db.appMeta.get('testDataResetVersion')
+  if (resetVersion?.value !== TEST_DATA_RESET_VERSION) {
+    await db.transaction(
+      'rw',
+      [db.wordProgress, db.unitProgress, db.sessions, db.answerRecords, db.testResults, db.appMeta],
+      async () => {
+        await Promise.all([
+          db.wordProgress.clear(),
+          db.unitProgress.clear(),
+          db.sessions.clear(),
+          db.answerRecords.clear(),
+          db.testResults.clear(),
+        ])
+        await db.appMeta.put({ key: 'testDataResetVersion', value: TEST_DATA_RESET_VERSION })
+      },
+    )
+  }
+
   const seedVersion = await db.appMeta.get('seedDataVersion')
   if (seedVersion?.value === SEED_DATA_VERSION) return
 

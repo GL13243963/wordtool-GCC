@@ -18,6 +18,8 @@ type WrongWordsPageProps = {
 export const WrongWordsPage = ({ onNavigate }: WrongWordsPageProps) => {
   const [wrongWords, setWrongWords] = useState<WrongWordWithData[]>([])
   const [loading, setLoading] = useState(true)
+  const [exportMessage, setExportMessage] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -56,6 +58,21 @@ export const WrongWordsPage = ({ onNavigate }: WrongWordsPageProps) => {
     return <Card><p>正在加载错题本……</p></Card>
   }
 
+  const handleExport = async () => {
+    if (wrongWords.length === 0 || isExporting) return
+    setIsExporting(true)
+    setExportMessage('')
+    try {
+      const { downloadWrongWordsDocument } = await import('../domain/export/wrongWordsDocx')
+      await downloadWrongWordsDocument(wrongWords)
+      setExportMessage('Word 错题卡已导出，可以直接打印或保存。')
+    } catch {
+      setExportMessage('Word 导出失败，请稍后重试。')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <div className="page-stack">
       <Card>
@@ -64,9 +81,12 @@ export const WrongWordsPage = ({ onNavigate }: WrongWordsPageProps) => {
             <p className="eyebrow">错题本</p>
             <h1>需要加强的单词</h1>
           </div>
-          <Button onClick={() => onNavigate('study')} type="button">
-            开始复习
-          </Button>
+          <div className="wrong-words-actions">
+            <Button disabled={wrongWords.length === 0 || isExporting} onClick={() => void handleExport()} type="button" variant="secondary">
+              {isExporting ? '正在生成……' : '导出 Word 记忆卡'}
+            </Button>
+            <Button onClick={() => onNavigate('study')} type="button">开始复习</Button>
+          </div>
         </div>
 
         {wrongWords.length === 0 ? (
@@ -87,6 +107,7 @@ export const WrongWordsPage = ({ onNavigate }: WrongWordsPageProps) => {
             ))}
           </div>
         )}
+        {exportMessage && <p className="question-panel__feedback">{exportMessage}</p>}
       </Card>
     </div>
   )
