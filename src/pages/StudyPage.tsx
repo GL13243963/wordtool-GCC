@@ -45,6 +45,38 @@ const formatPauseTime = (seconds: number) => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
 }
 
+const completeLegacySessionQueue = (
+  questionQueue: QuestionItem[],
+  settings: AppSettings,
+  sessionStartedAt: number,
+) => {
+  const wordItems = Array.from(
+    new Map(questionQueue.map((item) => [item.wordId, item])).values(),
+  )
+  const existingKeys = new Set(questionQueue.map((item) => `${item.wordId}:${item.questionType}`))
+  const additions: QuestionItem[] = []
+
+  const appendMissing = (questionType: QuestionItem['questionType'], items: QuestionItem[]) => {
+    if (!settings.questionTypesEnabled[questionType]) return
+    for (const item of items) {
+      const key = `${item.wordId}:${questionType}`
+      if (existingKeys.has(key)) continue
+      additions.push({
+        id: `${sessionStartedAt}-${item.wordId}-${questionType}`,
+        wordId: item.wordId,
+        unitId: item.unitId,
+        questionType,
+        status: 'pending',
+      })
+      existingKeys.add(key)
+    }
+  }
+
+  appendMissing('spelling', wordItems)
+  appendMissing('readAloud', wordItems.slice(0, 5))
+  return additions.length > 0 ? [...questionQueue, ...additions] : questionQueue
+}
+
 export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
   const [words, setWords] = useState<Word[]>([])
   const [queue, setQueue] = useState<QuestionItem[]>([])
@@ -83,10 +115,13 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
           && activeSession.type === 'daily'
           && activeSession.unitId === settings.currentUnitId
           && activeSession.currentQuestionIndex < activeSession.questionQueue.length
+        const resumedQueue = activeSession
+          ? completeLegacySessionQueue(activeSession.questionQueue, settings, activeSession.startedAt)
+          : []
         const nextSession: StudySession | null = isTestMode
           ? null
           : canResume
-            ? { ...activeSession, status: 'active', pausedAt: undefined }
+            ? { ...activeSession, questionQueue: resumedQueue, status: 'active', pausedAt: undefined }
             : {
                 id: createSessionId(now),
                 studentId: settings.studentId,

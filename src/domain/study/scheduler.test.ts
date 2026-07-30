@@ -160,20 +160,8 @@ describe('daily task scheduler', () => {
     expect(plan.questionQueue).toHaveLength(0)
   })
 
-  test('generates spelling questions for seen words', () => {
-    // 对已见过的单词生成拼写题
+  test('schedules spelling and read-aloud stages for new words in the same lesson', () => {
     const progressMap = new Map()
-    const currentUnitWords = builtinWords.filter((word) => word.unitId === DEFAULT_SETTINGS.currentUnitId)
-
-    for (const word of currentUnitWords.slice(0, 3)) {
-      progressMap.set(word.id, {
-        ...createInitialWordProgress({ studentId: 'student', wordId: word.id, unitId: word.unitId, now: 0 }),
-        seenCount: 5, // seenCount >= 1 应该生成拼写题
-        correctCount: 5,
-        masteryScore: 50,
-        status: 'learning',
-      })
-    }
 
     const plan = createDailyTaskPlan({
       words: builtinWords,
@@ -182,8 +170,10 @@ describe('daily task scheduler', () => {
       now: 1_000,
     })
 
-    // 已见过的单词应该有拼写题
+    const selectedWordIds = plan.newWords.map((word) => word.id)
     const spellingQuestions = plan.questionQueue.filter((item) => item.questionType === 'spelling')
-    expect(spellingQuestions.length).toBeGreaterThan(0)
+    const readAloudQuestions = plan.questionQueue.filter((item) => item.questionType === 'readAloud')
+    expect(spellingQuestions.map((item) => item.wordId)).toEqual(selectedWordIds)
+    expect(readAloudQuestions.map((item) => item.wordId)).toEqual(selectedWordIds.slice(0, 5))
   })
 })

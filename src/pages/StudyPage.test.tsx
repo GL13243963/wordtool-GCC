@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { builtinWords } from '../data/vocabulary'
 import { DEFAULT_SETTINGS } from '../domain/settings/types'
-import { getActiveSession } from '../storage/progressRepository'
+import { getActiveSession, saveSession } from '../storage/progressRepository'
 import { StudyPage } from './StudyPage'
 
 vi.mock('../storage/settingsRepository', () => ({
@@ -105,5 +105,7 @@ describe('StudyPage', () => {
     await waitForStudyPageLoad()
 
     expect(screen.getByText(secondWord.text)).toBeTruthy()
+    expect(vi.mocked(saveSession).mock.calls.at(-1)?.[0].questionQueue.map((item) => item.questionType))
+      .toEqual(['enToZh', 'enToZh', 'spelling', 'spelling', 'readAloud', 'readAloud'])
   })
 })

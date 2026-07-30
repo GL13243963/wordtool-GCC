@@ -58,10 +58,12 @@ export const createDailyTaskPlan = ({
     ...reviewWordCandidates.slice(0, settings.dailyReviewLimit),
   ]
   const choiceWords = settings.questionTypesEnabled.enToZh ? selectedWords : []
-  const seenWords = selectedWords.filter((word) => (progressByWordId.get(word.id)?.seenCount ?? 0) >= 1)
-  const spellingWords = settings.questionTypesEnabled.spelling ? seenWords : []
+  // The queue is created before the lesson starts. New words therefore need all
+  // enabled stages scheduled up front; waiting for seenCount to change would make
+  // the lesson end after the choice stage without ever adding spelling or reading.
+  const spellingWords = settings.questionTypesEnabled.spelling ? selectedWords : []
   const readAloudWords = settings.questionTypesEnabled.readAloud
-    ? seenWords.slice(0, MAX_DAILY_READ_ALOUD_QUESTIONS)
+    ? selectedWords.slice(0, MAX_DAILY_READ_ALOUD_QUESTIONS)
     : []
 
   const newWords = selectedWords.filter((word) => {
