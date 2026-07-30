@@ -12,6 +12,7 @@ describe('backupService', () => {
         wordProgress: [],
         unitProgress: [],
         sessions: [],
+        answerRecords: [],
         testResults: [],
         appMeta: [],
       },

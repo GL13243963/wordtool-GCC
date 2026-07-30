@@ -6,6 +6,17 @@ export type QuestionType = 'enToZh' | 'spelling' | 'readAloud'
 
 export type AnswerResult = 'correct' | 'wrong' | 'fuzzy' | 'skipped'
 
+export type PronunciationAssessment = {
+  engine: 'browser-speech-recognition'
+  transcript: string
+  matchScore: number
+  attemptCount: number
+}
+
+export type AnswerMetadata = {
+  pronunciation?: PronunciationAssessment
+}
+
 export type Familiarity = 'unknown' | 'fuzzy' | 'known'
 
 export type WordStatus = 'new' | 'learning' | 'reviewing' | 'mastered'
@@ -60,6 +71,21 @@ export type StudySession = {
   startedAt: number
   pausedAt?: number
   completedAt?: number
+}
+
+export type AnswerRecord = {
+  id: string
+  sessionId: string
+  studentId: string
+  wordId: string
+  unitId: string
+  questionType: QuestionType
+  result: AnswerResult
+  answeredAt: number
+  responseTimeMs: number
+  masteryBefore: number
+  masteryAfter: number
+  pronunciation?: PronunciationAssessment
 }
 
 export type UnitProgress = {

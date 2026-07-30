@@ -1,9 +1,15 @@
 import { z } from 'zod'
 import { appSettingsSchema } from '../settings/schema'
-import type { QuestionItem, StudySession, TestResult, UnitProgress, WordProgress } from './types'
+import type { AnswerRecord, QuestionItem, StudySession, TestResult, UnitProgress, WordProgress } from './types'
 
 export const questionTypeSchema = z.enum(['enToZh', 'spelling', 'readAloud'])
 export const answerResultSchema = z.enum(['correct', 'wrong', 'fuzzy', 'skipped'])
+export const pronunciationAssessmentSchema = z.object({
+  engine: z.literal('browser-speech-recognition'),
+  transcript: z.string().max(500),
+  matchScore: z.number().min(0).max(100),
+  attemptCount: z.number().int().min(1).max(20),
+})
 
 export const wordProgressSchema = z.object({
   id: z.string().min(1).max(160),
@@ -56,6 +62,21 @@ export const studySessionSchema = z.object({
   pausedAt: z.number().int().min(0).optional(),
   completedAt: z.number().int().min(0).optional(),
 }) satisfies z.ZodType<StudySession>
+
+export const answerRecordSchema = z.object({
+  id: z.string().min(1).max(200),
+  sessionId: z.string().min(1).max(160),
+  studentId: z.string().min(1).max(80),
+  wordId: z.string().min(1).max(120),
+  unitId: z.string().min(1).max(80),
+  questionType: questionTypeSchema,
+  result: answerResultSchema,
+  answeredAt: z.number().int().min(0),
+  responseTimeMs: z.number().int().min(0).max(24 * 60 * 60 * 1000),
+  masteryBefore: z.number().min(0).max(100),
+  masteryAfter: z.number().min(0).max(100),
+  pronunciation: pronunciationAssessmentSchema.optional(),
+}) satisfies z.ZodType<AnswerRecord>
 
 export const unitProgressSchema = z.object({
   id: z.string().min(1).max(160),

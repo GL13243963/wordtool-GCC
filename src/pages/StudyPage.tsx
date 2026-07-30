@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { QuestionPanel } from '../components/question/QuestionPanel'
 import { ProgressBar } from '../components/study/ProgressBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { playLessonComplete } from '../domain/study/audioFeedback'
 import { createDailyTaskPlan } from '../domain/study/scheduler'
-import type { AnswerResult, QuestionItem, StudyMode, WordProgress } from '../domain/study/types'
+import type { AnswerMetadata, AnswerResult, QuestionItem, StudyMode, StudySession, WordProgress } from '../domain/study/types'
 import type { Word } from '../domain/vocabulary/types'
-import { getAllWords, getProgressMap, submitWordAnswer } from '../storage/progressRepository'
+import {
+  getActiveSession,
+  getAllWords,
+  getProgressMap,
+  saveAnswerRecord,
+  saveSession,
+  submitWordAnswer,
+} from '../storage/progressRepository'
 import { getSettings } from '../storage/settingsRepository'
 import type { AppView } from '../App'
 import type { AppSettings } from '../domain/settings/types'
@@ -18,6 +25,19 @@ type StudyPageProps = {
 }
 
 const PAUSE_AUTO_RETURN_SECONDS = 180
+
+const getLocalDateKey = (timestamp: number) => {
+  const date = new Date(timestamp)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const createSessionId = (now: number) =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `session-${now}-${Math.random().toString(36).slice(2)}`
 
 const formatPauseTime = (seconds: number) => {
   const minutes = Math.floor(seconds / 60)
@@ -30,6 +50,7 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
   const [queue, setQueue] = useState<QuestionItem[]>([])
   const [progressMap, setProgressMap] = useState<Map<string, WordProgress>>(new Map())
   const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [session, setSession] = useState<StudySession | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [completedCount, setCompletedCount] = useState(0)
   const [wrongCount, setWrongCount] = useState(0)
@@ -39,6 +60,7 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
   const [pauseSecondsRemaining, setPauseSecondsRemaining] = useState(PAUSE_AUTO_RETURN_SECONDS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const questionStartedAtRef = useRef(Date.now())
 
   const isTestMode = mode === 'test'
 
@@ -47,18 +69,48 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
 
     const load = async () => {
       try {
-        const [settings, allWords, progressData] = await Promise.all([
+        const [settings, allWords, progressData, activeSession] = await Promise.all([
           getSettings(),
           getAllWords(),
           getProgressMap(),
+          mode === 'study' ? getActiveSession() : Promise.resolve(undefined),
         ])
         if (cancelled) return
 
-        const plan = createDailyTaskPlan({ words: allWords, progressByWordId: progressData, settings, now: Date.now() })
+        const now = Date.now()
+        const plan = createDailyTaskPlan({ words: allWords, progressByWordId: progressData, settings, now })
+        const canResume = activeSession
+          && activeSession.type === 'daily'
+          && activeSession.unitId === settings.currentUnitId
+          && activeSession.currentQuestionIndex < activeSession.questionQueue.length
+        const nextSession: StudySession | null = isTestMode
+          ? null
+          : canResume
+            ? { ...activeSession, status: 'active', pausedAt: undefined }
+            : {
+                id: createSessionId(now),
+                studentId: settings.studentId,
+                type: 'daily',
+                status: 'active',
+                unitId: settings.currentUnitId,
+                sessionDate: getLocalDateKey(now),
+                questionQueue: plan.questionQueue,
+                currentQuestionIndex: 0,
+                plannedNewWordIds: plan.newWords.map((word) => word.id),
+                plannedReviewWordIds: plan.reviewWords.map((word) => word.id),
+                completedWordIds: [],
+                settingsSnapshot: settings,
+                startedAt: now,
+              }
         setSettings(settings)
         setWords(allWords)
         setProgressMap(progressData)
-        setQueue(plan.questionQueue)
+        setQueue(nextSession?.questionQueue ?? plan.questionQueue)
+        setCurrentIndex(nextSession?.currentQuestionIndex ?? 0)
+        setCompletedCount(nextSession?.currentQuestionIndex ?? 0)
+        setSession(nextSession)
+        if (nextSession) await saveSession(nextSession)
+        questionStartedAtRef.current = now
       } catch {
         if (!cancelled) setError('今日任务生成失败，请返回首页后重试。')
       } finally {
@@ -71,7 +123,7 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isTestMode, mode])
 
   useEffect(() => {
     if (!isPaused) return undefined
@@ -100,23 +152,39 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
   const moveNext = () => {
     setCompletedCount((count) => count + 1)
     setCurrentIndex((index) => index + 1)
+    questionStartedAtRef.current = Date.now()
+  }
+
+  const persistPausedSession = async () => {
+    if (!session) return
+    const nextSession = { ...session, status: 'paused' as const, pausedAt: Date.now(), currentQuestionIndex: currentIndex }
+    setSession(nextSession)
+    await saveSession(nextSession)
   }
 
   const handlePause = () => {
     setPauseSecondsRemaining(PAUSE_AUTO_RETURN_SECONDS)
     setIsPaused(true)
+    void persistPausedSession()
   }
 
   const handleResume = () => {
     setIsPaused(false)
     setPauseSecondsRemaining(PAUSE_AUTO_RETURN_SECONDS)
+    if (session) {
+      const nextSession = { ...session, status: 'active' as const, pausedAt: undefined }
+      setSession(nextSession)
+      void saveSession(nextSession)
+    }
+    questionStartedAtRef.current = Date.now()
   }
 
   const handleReturnHome = () => {
+    void persistPausedSession()
     onNavigate('home')
   }
 
-  const handleAnswer = async (result: AnswerResult) => {
+  const handleAnswer = async (result: AnswerResult, metadata?: AnswerMetadata) => {
     if (!currentQuestion || !currentWord) return
 
     // 更新连击计数
@@ -134,12 +202,55 @@ export const StudyPage = ({ onNavigate, mode }: StudyPageProps) => {
 
     // 测试模式不保存进度
     if (!isTestMode) {
-      await submitWordAnswer({
+      const answeredAt = Date.now()
+      const masteryBefore = progressMap.get(currentWord.id)?.masteryScore ?? 0
+      const nextProgress = await submitWordAnswer({
         word: currentWord,
         result,
         questionType: currentQuestion.questionType,
-        answeredAt: Date.now(),
+        answeredAt,
       })
+      setProgressMap((current) => new Map(current).set(currentWord.id, nextProgress))
+
+      if (session) {
+        const nextQueue = queue.map((item, index) => index === currentIndex
+          ? {
+              ...item,
+              status: result === 'skipped' ? 'skipped' as const : 'answered' as const,
+              answerResult: result,
+              answeredAt,
+            }
+          : item)
+        const nextCompletedWordIds = Array.from(new Set([...session.completedWordIds, currentWord.id]))
+        const isLastQuestion = currentIndex === queue.length - 1
+        const nextSession: StudySession = {
+          ...session,
+          status: isLastQuestion ? 'completed' : 'active',
+          questionQueue: nextQueue,
+          currentQuestionIndex: currentIndex + 1,
+          completedWordIds: nextCompletedWordIds,
+          completedAt: isLastQuestion ? answeredAt : undefined,
+        }
+        await Promise.all([
+          saveAnswerRecord({
+            id: `${session.id}:${currentQuestion.id}`,
+            sessionId: session.id,
+            studentId: session.studentId,
+            wordId: currentWord.id,
+            unitId: currentWord.unitId,
+            questionType: currentQuestion.questionType,
+            result,
+            answeredAt,
+            responseTimeMs: Math.max(0, answeredAt - questionStartedAtRef.current),
+            masteryBefore,
+            masteryAfter: nextProgress.masteryScore,
+            pronunciation: metadata?.pronunciation,
+          }),
+          saveSession(nextSession),
+        ])
+        setQueue(nextQueue)
+        setSession(nextSession)
+      }
     }
 
     // 如果是最后一题，播放结算音效

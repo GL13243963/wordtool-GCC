@@ -1,6 +1,6 @@
 import { DEFAULT_STUDENT_ID } from '../domain/settings/types'
 import { applyAnswerToProgress, createInitialWordProgress } from '../domain/study/mastery'
-import type { AnswerResult, QuestionType, StudySession, WordProgress } from '../domain/study/types'
+import type { AnswerRecord, AnswerResult, QuestionType, StudySession, WordProgress } from '../domain/study/types'
 import type { Word } from '../domain/vocabulary/types'
 import { db } from './db'
 
@@ -48,6 +48,14 @@ export const saveSession = async (session: StudySession) => {
   await db.sessions.put(session)
   return session
 }
+
+export const saveAnswerRecord = (record: AnswerRecord) => db.answerRecords.put(record)
+
+export const getAnswerRecordsForStudent = (studentId = DEFAULT_STUDENT_ID) =>
+  db.answerRecords.where('studentId').equals(studentId).sortBy('answeredAt')
+
+export const getSessionsForStudent = (studentId = DEFAULT_STUDENT_ID) =>
+  db.sessions.where('studentId').equals(studentId).sortBy('startedAt')
 
 export const getActiveSession = (studentId = DEFAULT_STUDENT_ID) =>
   db.sessions

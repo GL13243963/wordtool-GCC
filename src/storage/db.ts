@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { AppSettings } from '../domain/settings/types'
-import type { QuestionItem, StudySession, TestResult, UnitProgress, WordProgress } from '../domain/study/types'
+import type { AnswerRecord, QuestionItem, StudySession, TestResult, UnitProgress, WordProgress } from '../domain/study/types'
 import type { Unit, Word } from '../domain/vocabulary/types'
 
 export type AppMeta = {
@@ -15,6 +15,7 @@ export class VocabTrainerDatabase extends Dexie {
   unitProgress!: EntityTable<UnitProgress, 'id'>
   settings!: EntityTable<AppSettings, 'studentId'>
   sessions!: EntityTable<StudySession, 'id'>
+  answerRecords!: EntityTable<AnswerRecord, 'id'>
   testResults!: EntityTable<TestResult, 'id'>
   appMeta!: EntityTable<AppMeta, 'key'>
 
@@ -28,6 +29,18 @@ export class VocabTrainerDatabase extends Dexie {
       unitProgress: 'id, studentId, unitId, status, updatedAt',
       settings: 'studentId, currentBookId, currentUnitId, updatedAt',
       sessions: 'id, studentId, status, sessionDate, startedAt',
+      testResults: 'id, studentId, unitId, type, completedAt',
+      appMeta: 'key',
+    })
+
+    this.version(2).stores({
+      words: 'id, bookId, unitId, text, source',
+      units: 'id, bookId, order',
+      wordProgress: 'id, studentId, wordId, unitId, status, nextReviewAt, updatedAt',
+      unitProgress: 'id, studentId, unitId, status, updatedAt',
+      settings: 'studentId, currentBookId, currentUnitId, updatedAt',
+      sessions: 'id, studentId, status, sessionDate, startedAt',
+      answerRecords: 'id, sessionId, studentId, wordId, unitId, answeredAt',
       testResults: 'id, studentId, unitId, type, completedAt',
       appMeta: 'key',
     })

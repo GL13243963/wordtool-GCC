@@ -95,7 +95,7 @@ describe('QuestionPanel', () => {
       />,
     )
 
-    expect(screen.getByText(/当前浏览器不支持语音识别/)).toBeTruthy()
+    expect(screen.getByText(/当前设备或浏览器未提供语音识别/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '跳过本题' }))
 
     await act(async () => {

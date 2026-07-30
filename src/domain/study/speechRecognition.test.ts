@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { scoreReadAloud } from './speechRecognition'
+import { getReadAloudMatchScore, scoreReadAloud } from './speechRecognition'
 
 describe('speechRecognition', () => {
   test('scores exact and case-insensitive transcripts as correct', () => {
@@ -13,5 +13,11 @@ describe('speechRecognition', () => {
 
   test('rejects unrelated transcripts', () => {
     expect(scoreReadAloud('family', 'finally')).toBe(false)
+  })
+
+  test('reports a transparent transcript match score', () => {
+    expect(getReadAloudMatchScore('Family', 'family!')).toBe(100)
+    expect(getReadAloudMatchScore('family', 'my family')).toBe(85)
+    expect(getReadAloudMatchScore('family', 'finally')).toBe(0)
   })
 })

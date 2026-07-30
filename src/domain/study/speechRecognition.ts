@@ -80,6 +80,14 @@ export const scoreReadAloud = (expected: string, transcript: string): boolean =>
   return normalizedTranscript.split(' ').includes(normalizedExpected)
 }
 
+export const getReadAloudMatchScore = (expected: string, transcript: string): number => {
+  const normalizedExpected = normalizeTranscript(expected)
+  const normalizedTranscript = normalizeTranscript(transcript)
+  if (!normalizedExpected || !normalizedTranscript) return 0
+  if (normalizedExpected === normalizedTranscript) return 100
+  return normalizedTranscript.split(' ').includes(normalizedExpected) ? 85 : 0
+}
+
 const mapRecognitionError = (error?: string): SpeechRecognitionFailure => {
   if (error === 'not-allowed' || error === 'service-not-allowed' || error === 'permission-denied') {
     return {
@@ -102,7 +110,7 @@ const mapRecognitionError = (error?: string): SpeechRecognitionFailure => {
 export const recognizeEnglishOnce = (): Promise<string> => {
   const Recognition = getRecognitionConstructor()
   if (!Recognition) {
-    return Promise.reject(new SpeechRecognitionError({ code: 'unsupported', message: '当前浏览器不支持语音识别，请使用 Chrome 或 Edge。' }))
+    return Promise.reject(new SpeechRecognitionError({ code: 'unsupported', message: '当前设备或浏览器未提供语音识别，请更新系统和浏览器后重试。' }))
   }
 
   return new Promise((resolve, reject) => {

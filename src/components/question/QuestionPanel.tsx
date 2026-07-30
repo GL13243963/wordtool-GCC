@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { playAnswerSound, playComboSound, speakEnglish } from '../../domain/study/audioFeedback'
 import { normalizeBuiltAnswer, normalizeChunkComparison } from '../../domain/study/chunking'
 import { createQuestion, type StudyQuestion } from '../../domain/study/questionFactory'
-import { isSpeechRecognitionSupported, recognizeEnglishOnce, scoreReadAloud } from '../../domain/study/speechRecognition'
-import type { AnswerResult } from '../../domain/study/types'
+import { getReadAloudMatchScore, isSpeechRecognitionSupported, recognizeEnglishOnce, scoreReadAloud } from '../../domain/study/speechRecognition'
+import type { AnswerMetadata, AnswerResult } from '../../domain/study/types'
 import type { Word } from '../../domain/vocabulary/types'
 import { toggleWordStar } from '../../storage/progressRepository'
 import { Button } from '../ui/Button'
@@ -25,13 +25,44 @@ export type QuestionPanelProps = {
   isFirstEncounter?: boolean
   comboCount?: number
   isStarred?: boolean
-  onAnswer: (result: AnswerResult) => Promise<void> | void
+  onAnswer: (result: AnswerResult, metadata?: AnswerMetadata) => Promise<void> | void
   onToggleStar?: (wordId: string) => void
 }
 
 type PendingAnswer = {
   result: AnswerResult
   feedback: string
+  metadata?: AnswerMetadata
+}
+
+const beginLocalRecording = async (): Promise<(() => Promise<Blob | null>) | null> => {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return null
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const chunks: BlobPart[] = []
+    const recorder = new MediaRecorder(stream)
+    const stopped = new Promise<Blob | null>((resolve) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data)
+      }
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        resolve(chunks.length > 0 ? new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }) : null)
+      }
+      recorder.onerror = () => {
+        stream.getTracks().forEach((track) => track.stop())
+        resolve(null)
+      }
+    })
+    recorder.start()
+    return async () => {
+      if (recorder.state !== 'inactive') recorder.stop()
+      return stopped
+    }
+  } catch {
+    return null
+  }
 }
 
 const getQuestionInstruction = (questionType: StudyQuestion['questionType']) => {
@@ -53,6 +84,8 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
   const [isListening, setIsListening] = useState(false)
   const [recognizedTranscript, setRecognizedTranscript] = useState('')
   const [recognitionError, setRecognitionError] = useState('')
+  const [recordingUrl, setRecordingUrl] = useState('')
+  const [matchScore, setMatchScore] = useState<number | null>(null)
   const [pendingAnswer, setPendingAnswer] = useState<PendingAnswer | null>(null)
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -76,6 +109,11 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     setIsListening(false)
     setRecognizedTranscript('')
     setRecognitionError('')
+    setMatchScore(null)
+    setRecordingUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl)
+      return ''
+    })
     setSubmitError('')
     setPendingAnswer(null)
     hasSubmittedRef.current = false
@@ -110,8 +148,9 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
       if (resetTimerRef.current !== null) {
         window.clearTimeout(resetTimerRef.current)
       }
+      if (recordingUrl) URL.revokeObjectURL(recordingUrl)
     }
-  }, [])
+  }, [recordingUrl])
 
   const handleNext = async () => {
     if (!pendingAnswer || isSubmitting || hasSubmittedRef.current) return
@@ -121,7 +160,11 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     setSubmitError('')
     setIsSubmitting(true)
     try {
-      await onAnswer(pendingAnswer.result)
+      if (pendingAnswer.metadata) {
+        await onAnswer(pendingAnswer.result, pendingAnswer.metadata)
+      } else {
+        await onAnswer(pendingAnswer.result)
+      }
     } catch {
       hasSubmittedRef.current = false
       setSubmitError('保存失败，请检查浏览器本地存储后重试。')
@@ -140,13 +183,13 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     return clearAutoAdvanceTimer
   }, [pendingAnswer, submitError])
 
-  const stageAnswer = (result: AnswerResult, feedback: string) => {
+  const stageAnswer = (result: AnswerResult, feedback: string, metadata?: AnswerMetadata) => {
     if (hasAnswered || isSubmitting) return
     playAnswerSound(result, soundEnabled)
     if (result === 'correct' && comboCount && comboCount >= 2) {
       playComboSound(comboCount, soundEnabled)
     }
-    setPendingAnswer({ result, feedback })
+    setPendingAnswer({ result, feedback, metadata })
   }
 
   const handleChoice = (option: string) => {
@@ -226,27 +269,45 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     if (hasAnswered || isSubmitting || isListening) return
 
     if (!speechRecognitionSupported) {
-      setRecognitionError('当前浏览器不支持语音识别，请使用 Chrome 或 Edge。')
+      setRecognitionError('当前设备或浏览器未提供语音识别，请更新系统和浏览器后重试。')
       return
     }
 
     setIsListening(true)
     setRecognitionError('')
     setRecognizedTranscript('')
+    setMatchScore(null)
+    const stopRecording = await beginLocalRecording()
 
     try {
       const transcript = await recognizeEnglishOnce()
+      const nextMatchScore = getReadAloudMatchScore(question.answer, transcript)
+      const nextAttemptCount = readAloudAttemptCount + 1
       setRecognizedTranscript(transcript)
+      setMatchScore(nextMatchScore)
 
       if (scoreReadAloud(question.answer, transcript)) {
-        stageAnswer('correct', '朗读通过，马上进入下一题。')
+        stageAnswer('correct', '朗读通过，马上进入下一题。', {
+          pronunciation: {
+            engine: 'browser-speech-recognition',
+            transcript,
+            matchScore: nextMatchScore,
+            attemptCount: nextAttemptCount,
+          },
+        })
         return
       }
 
-      const nextAttemptCount = readAloudAttemptCount + 1
       setReadAloudAttemptCount(nextAttemptCount)
       if (nextAttemptCount >= MAX_ATTEMPTS) {
-        stageAnswer('wrong', `已尝试3次，正确读音：${question.answer}`)
+        stageAnswer('wrong', `已尝试3次，正确读音：${question.answer}`, {
+          pronunciation: {
+            engine: 'browser-speech-recognition',
+            transcript,
+            matchScore: nextMatchScore,
+            attemptCount: nextAttemptCount,
+          },
+        })
         return
       }
 
@@ -260,6 +321,13 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
         stageAnswer('wrong', `已尝试3次，正确读音：${question.answer}`)
       }
     } finally {
+      const recording = await stopRecording?.()
+      if (recording) {
+        setRecordingUrl((currentUrl) => {
+          if (currentUrl) URL.revokeObjectURL(currentUrl)
+          return URL.createObjectURL(recording)
+        })
+      }
       setIsListening(false)
     }
   }
@@ -375,7 +443,7 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
       )}
 
       {question.type === 'readAloud' && (
-        <div className="read-aloud-box">
+        <div className={`read-aloud-box ${isListening ? 'read-aloud-box--recording' : ''}`}>
           <div>
             <p className="read-aloud-box__word">{question.answer}</p>
             <p className="muted">请听标准发音，然后点击开始朗读。</p>
@@ -383,18 +451,31 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
           {renderListenButtons()}
           {!speechRecognitionSupported && (
             <p className="question-panel__feedback question-panel__feedback--error">
-              当前浏览器不支持语音识别，请使用 Chrome 或 Edge。你可以跳过本题。
+              当前设备或浏览器未提供语音识别。请更新系统和浏览器后重试，也可以跳过本题。
             </p>
           )}
           {recognizedTranscript && (
             <p className="read-aloud-box__transcript">我听到的是：{recognizedTranscript}</p>
+          )}
+          {matchScore !== null && (
+            <div className="read-aloud-score" aria-label={`识别匹配度 ${matchScore} 分`}>
+              <strong>{matchScore}</strong>
+              <span>识别匹配度</span>
+              <small>当前为文字识别匹配，并非音素发音分</small>
+            </div>
+          )}
+          {recordingUrl && (
+            <div className="read-aloud-playback">
+              <span>听听我的朗读</span>
+              <audio controls playsInline preload="metadata" src={recordingUrl} />
+            </div>
           )}
           {recognitionError && (
             <p className="question-panel__feedback question-panel__feedback--wrong">{recognitionError}</p>
           )}
           <div className="read-aloud-box__actions">
             <Button disabled={!speechRecognitionSupported || hasAnswered || isSubmitting || isListening} onClick={() => void handleReadAloudStart()} type="button">
-              {isListening ? '正在听……' : '🎙 开始朗读'}
+              {isListening ? '● 正在录音并识别……' : '🎙 开始朗读'}
             </Button>
             {!speechRecognitionSupported && (
               <Button disabled={hasAnswered || isSubmitting} onClick={() => stageAnswer('skipped', '已跳过跟读题。')} type="button" variant="ghost">跳过本题</Button>
