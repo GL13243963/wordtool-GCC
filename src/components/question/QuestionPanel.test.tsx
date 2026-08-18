@@ -95,7 +95,12 @@ describe('QuestionPanel', () => {
       />,
     )
 
-    expect(screen.getByText(/当前设备或浏览器未提供语音识别/)).toBeTruthy()
+    expect(screen.getByText('兼容录音跟读')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '🎙 开启麦克风并录音' }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByText(/HTTPS 公网地址|当前浏览器无法进行网页录音/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '跳过本题' }))
 
     await act(async () => {

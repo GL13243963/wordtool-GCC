@@ -7,9 +7,9 @@ export type QuestionType = 'enToZh' | 'spelling' | 'readAloud'
 export type AnswerResult = 'correct' | 'wrong' | 'fuzzy' | 'skipped'
 
 export type PronunciationAssessment = {
-  engine: 'browser-speech-recognition'
-  transcript: string
-  matchScore: number
+  engine: 'browser-speech-recognition' | 'manual-recording'
+  transcript?: string
+  matchScore?: number
   attemptCount: number
 }
 

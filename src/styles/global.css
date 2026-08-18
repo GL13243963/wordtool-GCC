@@ -1448,6 +1448,30 @@ input {
   color: var(--color-muted);
 }
 
+.read-aloud-fallback {
+  background: linear-gradient(135deg, #eff6ff, #eef2ff);
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.read-aloud-fallback strong {
+  color: #1e40af;
+}
+
+.read-aloud-fallback p {
+  color: #334155;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.read-aloud-fallback small {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
 .read-aloud-playback {
   align-items: center;
   background: #f8fafc;

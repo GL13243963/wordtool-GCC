@@ -5,9 +5,9 @@ import type { AnswerRecord, QuestionItem, StudySession, TestResult, UnitProgress
 export const questionTypeSchema = z.enum(['enToZh', 'spelling', 'readAloud'])
 export const answerResultSchema = z.enum(['correct', 'wrong', 'fuzzy', 'skipped'])
 export const pronunciationAssessmentSchema = z.object({
-  engine: z.literal('browser-speech-recognition'),
-  transcript: z.string().max(500),
-  matchScore: z.number().min(0).max(100),
+  engine: z.enum(['browser-speech-recognition', 'manual-recording']),
+  transcript: z.string().max(500).optional(),
+  matchScore: z.number().min(0).max(100).optional(),
   attemptCount: z.number().int().min(1).max(20),
 })
 

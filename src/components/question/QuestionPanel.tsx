@@ -38,31 +38,36 @@ type PendingAnswer = {
 const beginLocalRecording = async (): Promise<(() => Promise<Blob | null>) | null> => {
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') return null
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    const chunks: BlobPart[] = []
-    const recorder = new MediaRecorder(stream)
-    const stopped = new Promise<Blob | null>((resolve) => {
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.push(event.data)
-      }
-      recorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop())
-        resolve(chunks.length > 0 ? new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }) : null)
-      }
-      recorder.onerror = () => {
-        stream.getTracks().forEach((track) => track.stop())
-        resolve(null)
-      }
-    })
-    recorder.start()
-    return async () => {
-      if (recorder.state !== 'inactive') recorder.stop()
-      return stopped
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  const chunks: BlobPart[] = []
+  const recorder = new MediaRecorder(stream)
+  const stopped = new Promise<Blob | null>((resolve) => {
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data)
     }
-  } catch {
-    return null
+    recorder.onstop = () => {
+      stream.getTracks().forEach((track) => track.stop())
+      resolve(chunks.length > 0 ? new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }) : null)
+    }
+    recorder.onerror = () => {
+      stream.getTracks().forEach((track) => track.stop())
+      resolve(null)
+    }
+  })
+  recorder.start()
+  return async () => {
+    if (recorder.state !== 'inactive') recorder.stop()
+    return stopped
   }
+}
+
+const getMicrophoneErrorMessage = (error: unknown) => {
+  if (!window.isSecureContext) return '当前页面不是安全连接，浏览器不会开放麦克风。请使用下方 HTTPS 公网地址。'
+  if (error instanceof DOMException && error.name === 'NotAllowedError') {
+    return '麦克风权限被拒绝。请到平板“设置 → 应用和服务 → 浏览器 → 权限 → 麦克风”中允许，然后回到网页重试。'
+  }
+  if (error instanceof DOMException && error.name === 'NotFoundError') return '没有检测到可用麦克风，请检查设备麦克风。'
+  return '麦克风启动失败，请关闭其他正在录音的应用后重试。'
 }
 
 const getQuestionInstruction = (questionType: StudyQuestion['questionType']) => {
@@ -86,6 +91,7 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
   const [recognitionError, setRecognitionError] = useState('')
   const [recordingUrl, setRecordingUrl] = useState('')
   const [matchScore, setMatchScore] = useState<number | null>(null)
+  const [microphoneStatus, setMicrophoneStatus] = useState<'idle' | 'checking' | 'granted' | 'denied'>('idle')
   const [pendingAnswer, setPendingAnswer] = useState<PendingAnswer | null>(null)
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -97,6 +103,7 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
   const hasSubmittedRef = useRef(false)
   const autoAdvanceTimerRef = useRef<number | null>(null)
   const resetTimerRef = useRef<number | null>(null)
+  const manualRecordingStopRef = useRef<(() => Promise<Blob | null>) | null>(null)
   const hasAnswered = pendingAnswer !== null
   const speechRecognitionSupported = typeof window !== 'undefined' && isSpeechRecognitionSupported()
 
@@ -110,6 +117,11 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
     setRecognizedTranscript('')
     setRecognitionError('')
     setMatchScore(null)
+    setMicrophoneStatus('idle')
+    if (manualRecordingStopRef.current) {
+      void manualRecordingStopRef.current()
+      manualRecordingStopRef.current = null
+    }
     setRecordingUrl((currentUrl) => {
       if (currentUrl) URL.revokeObjectURL(currentUrl)
       return ''
@@ -149,6 +161,10 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
         window.clearTimeout(resetTimerRef.current)
       }
       if (recordingUrl) URL.revokeObjectURL(recordingUrl)
+      if (manualRecordingStopRef.current) {
+        void manualRecordingStopRef.current()
+        manualRecordingStopRef.current = null
+      }
     }
   }, [recordingUrl])
 
@@ -273,11 +289,22 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
       return
     }
 
+    setMicrophoneStatus('checking')
     setIsListening(true)
     setRecognitionError('')
     setRecognizedTranscript('')
     setMatchScore(null)
-    const stopRecording = await beginLocalRecording()
+    let stopRecording: (() => Promise<Blob | null>) | null = null
+
+    try {
+      stopRecording = await beginLocalRecording()
+      setMicrophoneStatus(stopRecording ? 'granted' : 'idle')
+    } catch (error) {
+      setMicrophoneStatus('denied')
+      setRecognitionError(getMicrophoneErrorMessage(error))
+      setIsListening(false)
+      return
+    }
 
     try {
       const transcript = await recognizeEnglishOnce()
@@ -330,6 +357,59 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
       }
       setIsListening(false)
     }
+  }
+
+  const saveRecording = (recording: Blob | null) => {
+    if (!recording) return
+    setRecordingUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl)
+      return URL.createObjectURL(recording)
+    })
+  }
+
+  const handleManualRecording = async () => {
+    if (hasAnswered || isSubmitting) return
+
+    if (manualRecordingStopRef.current) {
+      const stop = manualRecordingStopRef.current
+      manualRecordingStopRef.current = null
+      saveRecording(await stop())
+      setIsListening(false)
+      setReadAloudAttemptCount((count) => count + 1)
+      return
+    }
+
+    setRecognitionError('')
+    setRecordingUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl)
+      return ''
+    })
+    setMicrophoneStatus('checking')
+    try {
+      const stop = await beginLocalRecording()
+      if (!stop) {
+        setMicrophoneStatus('denied')
+        setRecognitionError(window.isSecureContext
+          ? '当前浏览器无法进行网页录音。建议安装最新版 Chrome，或在设置中暂时关闭朗读题。'
+          : '请使用 HTTPS 公网地址打开，普通局域网 HTTP 地址不能使用麦克风。')
+        return
+      }
+      manualRecordingStopRef.current = stop
+      setMicrophoneStatus('granted')
+      setIsListening(true)
+    } catch (error) {
+      setMicrophoneStatus('denied')
+      setRecognitionError(getMicrophoneErrorMessage(error))
+    }
+  }
+
+  const handleManualPass = () => {
+    stageAnswer('correct', '已完成录音跟读。', {
+      pronunciation: {
+        engine: 'manual-recording',
+        attemptCount: Math.max(1, readAloudAttemptCount),
+      },
+    })
   }
 
   const renderListenButtons = () => (
@@ -450,9 +530,11 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
           </div>
           {renderListenButtons()}
           {!speechRecognitionSupported && (
-            <p className="question-panel__feedback question-panel__feedback--error">
-              当前设备或浏览器未提供语音识别。请更新系统和浏览器后重试，也可以跳过本题。
-            </p>
+            <div className="read-aloud-fallback">
+              <strong>兼容录音跟读</strong>
+              <p>当前浏览器不支持自动语音评分，但仍可录音、回放并完成跟读。</p>
+              <small>麦克风状态：{microphoneStatus === 'checking' ? '正在申请权限' : microphoneStatus === 'granted' ? '已开启' : microphoneStatus === 'denied' ? '未开启' : '等待开启'}</small>
+            </div>
           )}
           {recognizedTranscript && (
             <p className="read-aloud-box__transcript">我听到的是：{recognizedTranscript}</p>
@@ -474,11 +556,18 @@ export const QuestionPanel = ({ word, allWords, questionType, soundEnabled, isFi
             <p className="question-panel__feedback question-panel__feedback--wrong">{recognitionError}</p>
           )}
           <div className="read-aloud-box__actions">
-            <Button disabled={!speechRecognitionSupported || hasAnswered || isSubmitting || isListening} onClick={() => void handleReadAloudStart()} type="button">
-              {isListening ? '● 正在录音并识别……' : '🎙 开始朗读'}
-            </Button>
-            {!speechRecognitionSupported && (
-              <Button disabled={hasAnswered || isSubmitting} onClick={() => stageAnswer('skipped', '已跳过跟读题。')} type="button" variant="ghost">跳过本题</Button>
+            {speechRecognitionSupported ? (
+              <Button disabled={hasAnswered || isSubmitting || isListening} onClick={() => void handleReadAloudStart()} type="button">
+                {isListening ? '● 正在录音并识别……' : '🎙 开始朗读'}
+              </Button>
+            ) : (
+              <>
+                <Button disabled={hasAnswered || isSubmitting} onClick={() => void handleManualRecording()} type="button">
+                  {isListening ? '■ 停止录音' : recordingUrl ? '🎙 重新录音' : '🎙 开启麦克风并录音'}
+                </Button>
+                {recordingUrl && <Button disabled={hasAnswered || isSubmitting} onClick={handleManualPass} type="button" variant="secondary">朗读完成</Button>}
+                <Button disabled={hasAnswered || isSubmitting || isListening} onClick={() => stageAnswer('skipped', '已跳过跟读题。')} type="button" variant="ghost">跳过本题</Button>
+              </>
             )}
           </div>
           {readAloudAttemptCount > 0 && !hasAnswered && readAloudAttemptCount < MAX_ATTEMPTS && (
